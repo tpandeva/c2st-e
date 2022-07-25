@@ -1,7 +1,6 @@
 import numpy as np
 import torch
 from torch.distributions import Normal
-from sklearn.metrics import accuracy_score
 
 
 def c2st(y,y_hat):

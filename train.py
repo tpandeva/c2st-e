@@ -12,13 +12,9 @@ logger = logging.getLogger(__name__)
 
 @hydra.main(config_path='configs', config_name='default.yaml')
 def train(cfg: DictConfig):
-    # The decorator is enough to let Hydra load the configuration file.
 
     # Simple logging of the configuration
     logger.info(OmegaConf.to_yaml(cfg))
-
-    # We recover the original path of the dataset:
-
     # Load data
     train_data = [torch.from_numpy(el) for el in make_moons(n_samples=cfg.data.train_samples, noise=1)]
     val_data = [torch.from_numpy(el) for el in make_moons(n_samples=cfg.data.val_samples, noise=1)]
@@ -34,8 +30,12 @@ def train(cfg: DictConfig):
     # Initialize the network
     callbacks: List[Callback] = hydra.utils.instantiate(cfg.early_stopping)
     classifier = SimpleClassifier(cfg.model)
+
+    # Train
     trainer = pl.Trainer(**cfg.trainer, callbacks=callbacks)
     trainer.fit(classifier, train_loader, val_loader)
+
+    #Test
     trainer.test(classifier,test_loader)
 
 if __name__ == "__main__":

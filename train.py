@@ -18,14 +18,18 @@ logger = logging.getLogger(__name__)
 from sklearn.model_selection import train_test_split
 @hydra.main(config_path='configs', config_name='default.yaml')
 def train(cfg: DictConfig):
-    powerp, powere, powerl, powerm, powerme, powerscf = np.zeros((10,10)), np.zeros((10,10)), np.zeros((10,10)),\
-                                                    np.zeros((10,10)), np.zeros((10,10)), np.zeros((10,10))
+    powerp, powere, powerl, powerm, powerme, powerscf = np.zeros((10,100)), np.zeros((10,100)), np.zeros((10,100)),\
+                                                    np.zeros((10,100)), np.zeros((10,100)), np.zeros((10,100))
     l=0
-    for samples in range(100,1000,100):
+    if cfg.data.type == "blob":
+        n_list = list(range(10,110,10))
+    else:
+        n_list = list(range(100,1100,100))
+    for samples in n_list:
 
         if cfg.data.type == "blob":
             samples=samples*9
-        for s in range(10):
+        for s in range(100):
             logger.info(OmegaConf.to_yaml(cfg))
 
             if False:

@@ -21,7 +21,7 @@ def train(cfg: DictConfig):
     powerp, powere, powerl, powerm, powerme, powerscf = np.zeros((10,100)), np.zeros((10,100)), np.zeros((10,100)),\
                                                     np.zeros((10,100)), np.zeros((10,100)), np.zeros((10,100))
     l=0
-    if cfg.data.type == "blob":
+    if cfg.data.type == "blob" or cfg.data.type == "blob-2":
         n_list = list(range(10,110,10))
     else:
         n_list = list(range(100,1100,100))

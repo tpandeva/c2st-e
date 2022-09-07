@@ -14,8 +14,8 @@ class SimpleClassifier(pl.LightningModule):
             torch.nn.ReLU(),
             torch.nn.Linear(hparams.hidden_layer_size, hparams.hidden_layer_size),
             torch.nn.ReLU(),
-            torch.nn.Linear(hparams.hidden_layer_size, hparams.hidden_layer_size),
-            torch.nn.ReLU(),
+        #    torch.nn.Linear(hparams.hidden_layer_size, hparams.hidden_layer_size),
+        #    torch.nn.ReLU(),
             torch.nn.Linear(hparams.hidden_layer_size, hparams.output_size),
         )
         if hparams.test == "mmd-d":
@@ -134,8 +134,8 @@ class MMD_DClassifier(pl.LightningModule):
             torch.nn.ReLU(),
             torch.nn.Linear(hparams.hidden_layer_size, hparams.hidden_layer_size),
             torch.nn.ReLU(),
-            torch.nn.Linear(hparams.hidden_layer_size, hparams.hidden_layer_size),
-            torch.nn.ReLU(),
+     #       torch.nn.Linear(hparams.hidden_layer_size, hparams.hidden_layer_size),
+     #       torch.nn.ReLU(),
             torch.nn.Linear(hparams.hidden_layer_size, hparams.hidden_layer_size, bias=True),
         )
         self.eps, self.sigma, self.sigma0_u = torch.nn.Parameter(torch.from_numpy(np.random.rand(1) * (10 ** (-10))),  requires_grad=True),\

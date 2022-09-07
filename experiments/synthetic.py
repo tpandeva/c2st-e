@@ -8,7 +8,7 @@ from sklearn.datasets import  make_moons
 class Data(Dataset):
     def __init__(self, data, samples, seed, with_labels=True):
         if data.type=="blob":
-            sep = 1
+            sep = data.sep
             rows = 3
             cols = 3
             """Generate Blob-S for testing type-I error."""

@@ -4,9 +4,7 @@ defaults:
 seed: 0
 data:
   type: "blob"
-  train_samples: 90
-  val_samples: 90
-  test_samples: 90
+  sep: 5
   batch_size: 30
   noise: 2
 model:

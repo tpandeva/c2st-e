@@ -9,16 +9,14 @@ class SimpleClassifier(pl.LightningModule):
     def __init__(self, hparams: DictConfig):
         super().__init__()
         self.save_hyperparameters(hparams)
-        #if hparams.loss == "cross_entropy":
-       # self.linear1 = nn.Linear(hparams.input_size, hparams.hidden_layer_size)
         self.latent = torch.nn.Sequential(
             torch.nn.Linear(hparams.input_size, hparams.hidden_layer_size),
             torch.nn.ReLU(),
             torch.nn.Linear(hparams.hidden_layer_size, hparams.hidden_layer_size),
             torch.nn.ReLU(),
-            torch.nn.Linear(hparams.hidden_layer_size, hparams.output_size, bias=True),
-        #    torch.nn.Softplus(),
-        #    torch.nn.Linear(hparams.hidden_layer_size, hparams.output_size, bias=True),
+            torch.nn.Linear(hparams.hidden_layer_size, hparams.hidden_layer_size),
+            torch.nn.ReLU(),
+            torch.nn.Linear(hparams.hidden_layer_size, hparams.output_size),
         )
         if hparams.test == "mmd-d":
             self.W = torch.nn.Parameter(torch.randn([hparams.hidden_layer_size, 2]).float(), requires_grad=True)
@@ -136,9 +134,9 @@ class MMD_DClassifier(pl.LightningModule):
             torch.nn.ReLU(),
             torch.nn.Linear(hparams.hidden_layer_size, hparams.hidden_layer_size),
             torch.nn.ReLU(),
+            torch.nn.Linear(hparams.hidden_layer_size, hparams.hidden_layer_size),
+            torch.nn.ReLU(),
             torch.nn.Linear(hparams.hidden_layer_size, hparams.hidden_layer_size, bias=True),
-         #   torch.nn.Softplus(),
-         #   torch.nn.Linear(hparams.hidden_layer_size, hparams.hidden_layer_size, bias=True),
         )
         self.eps, self.sigma, self.sigma0_u = torch.nn.Parameter(torch.from_numpy(np.random.rand(1) * (10 ** (-10))),  requires_grad=True),\
                                               torch.nn.Parameter(torch.from_numpy(np.sqrt(np.random.rand(1) * 0.3)),  requires_grad=True),\

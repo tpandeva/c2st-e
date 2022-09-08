@@ -25,9 +25,9 @@ def train(cfg: DictConfig):
         n_list = list(range(90,990,90))
     else:
         n_list = list(range(100,1100,100))
-    for samples in [270]:#n_list:
+    for samples in n_list:
 
-        for s in range(1):
+        for s in range(100):
             logger.info(OmegaConf.to_yaml(cfg))
 
             if False:

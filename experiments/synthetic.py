@@ -67,8 +67,7 @@ class Data(Dataset):
             y = dt[1]
             X = dt[0][y==1]
             Y = dt[0][y==0]
-            X = torch.from_numpy(X)
-            Y = torch.from_numpy(Y)
+
         if with_labels:
             self.x = torch.concat((X, Y)).float()
             self.y = torch.concat((torch.ones(int(X.shape[0])), torch.zeros(int(X.shape[0]))))

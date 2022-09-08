@@ -11,15 +11,19 @@ class SimpleClassifier(pl.LightningModule):
         self.save_hyperparameters(hparams)
         self.latent = torch.nn.Sequential(
             torch.nn.Linear(hparams.input_size, hparams.hidden_layer_size),
+            torch.nn.BatchNorm1d(hparams.hidden_layer_size),
             torch.nn.ReLU(),
             torch.nn.Linear(hparams.hidden_layer_size, hparams.hidden_layer_size),
+            torch.nn.BatchNorm1d(hparams.hidden_layer_size),
             torch.nn.ReLU(),
-        #    torch.nn.Linear(hparams.hidden_layer_size, hparams.hidden_layer_size),
-        #    torch.nn.ReLU(),
+            torch.nn.Linear(hparams.hidden_layer_size, hparams.hidden_layer_size),
+            torch.nn.BatchNorm1d(hparams.hidden_layer_size),
+            torch.nn.ReLU(),
             torch.nn.Linear(hparams.hidden_layer_size, hparams.output_size),
+
         )
         if hparams.test == "mmd-d":
-            self.W = torch.nn.Parameter(torch.randn([hparams.hidden_layer_size, 2]).float(), requires_grad=True)
+            self.W = torch.nn.Parameter(torch.randn([hparams.output_size, 2]).float(), requires_grad=True)
             self.b = torch.nn.Parameter(torch.randn([1, 2]).float(), requires_grad=True)
         #else:
         #    self.linear2 = nn.Linear(hparams.hidden_layer_size, 2)
@@ -66,14 +70,15 @@ class SimpleClassifier(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         x, y = batch
         if self.hparams.loss=="cross_entropy":
+           # y_hat = self(x)
+            #y_hat = torch.argmax(y_hat, dim=1)
             y_hat = self(x)
-            y_hat = torch.argmax(y_hat, dim=1)
-            acc = torch.sum(y == y_hat)/x.shape[0]
+            acc = F.cross_entropy(y_hat, y.long())#torch.sum(y == y_hat)/x.shape[0]
         else:
             _,y_hat = self(x,y)
             y_hat = torch.round(y_hat).int()
             acc = torch.sum(y == y_hat.view(-1,)) / y.shape[0]
-        self.log('val_acc', acc, on_epoch=True, prog_bar=True)
+        self.log('val_loss', acc, on_epoch=True, prog_bar=True)
         return acc
     def test_le(self, x,y, N_per, alpha=0.05):
 
@@ -130,13 +135,16 @@ class MMD_DClassifier(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters(hparams)
         self.latent = torch.nn.Sequential(
-            torch.nn.Linear(hparams.input_size, hparams.hidden_layer_size ),
+            torch.nn.Linear(hparams.input_size, hparams.hidden_layer_size),
+            torch.nn.BatchNorm1d(hparams.hidden_layer_size),
             torch.nn.ReLU(),
             torch.nn.Linear(hparams.hidden_layer_size, hparams.hidden_layer_size),
+            torch.nn.BatchNorm1d(hparams.hidden_layer_size),
             torch.nn.ReLU(),
-     #       torch.nn.Linear(hparams.hidden_layer_size, hparams.hidden_layer_size),
-     #       torch.nn.ReLU(),
-            torch.nn.Linear(hparams.hidden_layer_size, hparams.hidden_layer_size, bias=True),
+            torch.nn.Linear(hparams.hidden_layer_size, hparams.hidden_layer_size),
+            torch.nn.BatchNorm1d(hparams.hidden_layer_size),
+            torch.nn.ReLU(),
+            torch.nn.Linear(hparams.hidden_layer_size, hparams.output_size),
         )
         self.eps, self.sigma, self.sigma0_u = torch.nn.Parameter(torch.from_numpy(np.random.rand(1) * (10 ** (-10))),  requires_grad=True),\
                                               torch.nn.Parameter(torch.from_numpy(np.sqrt(np.random.rand(1) * 0.3)),  requires_grad=True),\

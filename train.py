@@ -22,14 +22,12 @@ def train(cfg: DictConfig):
                                                     np.zeros((10,100)), np.zeros((10,100)), np.zeros((10,100))
     l=0
     if cfg.data.type == "blob" or cfg.data.type == "blob-2":
-        n_list = list(range(10,110,10))
+        n_list = list(range(90,990,90))
     else:
         n_list = list(range(100,1100,100))
-    for samples in n_list:
+    for samples in [270]:#n_list:
 
-        if cfg.data.type == "blob":
-            samples=samples*9
-        for s in range(100):
+        for s in range(1):
             logger.info(OmegaConf.to_yaml(cfg))
 
             if False:
@@ -59,8 +57,8 @@ def train(cfg: DictConfig):
 
             train_data = Data(cfg.data, samples, s)
             val_data = Data(cfg.data, samples, s+12345)
-            train_loader = torch.utils.data.DataLoader(train_data, batch_size=cfg.data.batch_size, shuffle=True)
-            val_loader = torch.utils.data.DataLoader(val_data, batch_size=cfg.data.batch_size)
+            train_loader = torch.utils.data.DataLoader(train_data, batch_size=samples, shuffle=True)
+            val_loader = torch.utils.data.DataLoader(val_data, batch_size=samples)
             trainer = pl.Trainer(**cfg.trainer, callbacks=callbacks)
             trainer.fit(classifier, train_loader, val_loader)
 
@@ -70,7 +68,7 @@ def train(cfg: DictConfig):
             val_loader = torch.utils.data.DataLoader(val_data, batch_size=cfg.data.batch_size)
 
             # Initialize the network
-            callbacks: List[Callback] = hydra.utils.instantiate(cfg.early_stoppingMMD)
+            callbacks: List[Callback] = hydra.utils.instantiate(cfg.early_stopping)
             classifierMMD = MMD_DClassifier(cfg.model)  # MMD_DClassifier(cfg.model)
 
             # Train

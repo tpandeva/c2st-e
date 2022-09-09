@@ -237,8 +237,11 @@ class Featurizer(pl.LightningModule):
         out = self.model(img)
         out = out.view(out.shape[0], -1)
         feature = self.adv_layer(out)
-        mmd2, varEst, Kxyxy = MMDu(feature[0:x.shape[0], :], feature[x.shape[0]:, :], x, y, self.sigma ** 2,
-                                   self.sigma0_u ** 2, torch.exp(self.eps) / (1 + torch.exp(self.eps)))
+        si = self.sigma ** 2
+        si0 = self.sigma0_u ** 2
+        eps = torch.exp(self.eps) / (1 + torch.exp(self.eps))
+        mmd2, varEst, Kxyxy = MMDu(feature[0:x.shape[0], :], feature[x.shape[0]:, :], x, y, si,
+                                   si0, eps)
         return mmd2, varEst, Kxyxy
 
     def training_step(self, batch, batch_idx):

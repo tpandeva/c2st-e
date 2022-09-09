@@ -240,7 +240,7 @@ class Featurizer(pl.LightningModule):
         si = self.sigma ** 2
         si0 = self.sigma0_u ** 2
         eps = torch.exp(self.eps) / (1 + torch.exp(self.eps))
-        mmd2, varEst, Kxyxy = MMDu(feature[0:x.shape[0], :], feature[x.shape[0]:, :], x, y, si,
+        mmd2, varEst, Kxyxy = MMDu(feature[0:x.shape[0], :], feature[x.shape[0]:, :], x.view(x.shape[0],-1), y.view(y.shape[0],-1), si,
                                    si0, eps)
         return mmd2, varEst, Kxyxy
 

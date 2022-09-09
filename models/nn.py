@@ -237,14 +237,15 @@ class Featurizer(pl.LightningModule):
         out = self.model(img)
         out = out.view(out.shape[0], -1)
         feature = self.adv_layer(out)
-        mmd2, varEst, Kxyxy = MMDu(feature[0:x.shape[0], :], feature[x.shape[0]:, :], x, y, self.sigma ** 2,
-                                   self.sigma0_u ** 2, torch.exp(self.eps) / (1 + torch.exp(self.eps)))
-        return mmd2, varEst, Kxyxy
+        return feature
 
     def training_step(self, batch, batch_idx):
         # Very simple training loop
         x, y = batch
-        mmd2, varEst, Kxyxy = self(x, y)
+        feature = self(x, y)
+        mmd2, varEst, Kxyxy = MMDu(feature[0:x.shape[0], :], feature[x.shape[0]:, :], x, y, self.sigma ** 2,
+                                   self.sigma0_u ** 2, torch.exp(self.eps) / (1 + torch.exp(self.eps)))
+
         mmd_value_temp = -1 * mmd2
         mmd_std_temp = torch.sqrt(varEst + 10 ** (-8))
         loss = torch.div(mmd_value_temp, mmd_std_temp)
@@ -254,7 +255,10 @@ class Featurizer(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         x, y = batch
 
-        mmd2, varEst, Kxyxy = self(x, y)
+        feature = self(x, y)
+        mmd2, varEst, Kxyxy = MMDu(feature[0:x.shape[0], :], feature[x.shape[0]:, :], x, y, self.sigma ** 2,
+                                   self.sigma0_u ** 2, torch.exp(self.eps) / (1 + torch.exp(self.eps)))
+
         mmd_value_temp = -1 * mmd2
         mmd_std_temp = torch.sqrt(varEst + 10 ** (-8))
         STAT_u = torch.div(mmd_value_temp, mmd_std_temp)
@@ -265,7 +269,10 @@ class Featurizer(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         x, y = batch
 
-        mmd2, varEst, Kxyxy = self(x, y)
+        feature = self(x, y)
+        mmd2, varEst, Kxyxy = MMDu(feature[0:x.shape[0], :], feature[x.shape[0]:, :], x, y, self.sigma ** 2,
+                                   self.sigma0_u ** 2, torch.exp(self.eps) / (1 + torch.exp(self.eps)))
+
         mmd_value_temp = -1 * mmd2
         mmd_std_temp = torch.sqrt(varEst + 10 ** (-8))
         STAT_u = torch.div(mmd_value_temp, mmd_std_temp)

@@ -53,10 +53,8 @@ def train(cfg: DictConfig):
     del data_trans
 
     samples = 1000
-    device = torch.device("cuda:0")
-
     ind = np.random.choice(len(data_old), len(data_new),replace=False)
-    data_old = data_new[ind, :,:,:]
+    data_old = data_old[ind, :,:,:]
     data = (data_old,data_new)
     train_data, val_data, test_data =torch.utils.data.random_split(data, [1000, 200, 821])
     logger.info(OmegaConf.to_yaml(cfg))

@@ -75,7 +75,7 @@ def train(cfg: DictConfig):
 
     train_loader = torch.utils.data.DataLoader(train_data, batch_size=cfg.data.batch_size, shuffle=True)
     val_loader = torch.utils.data.DataLoader(val_data, batch_size=cfg.data.batch_size)
-    trainer = pl.Trainer(**cfg.trainer, accelerator="gpu",devices=0, callbacks=callbacks)
+    trainer = pl.Trainer(**cfg.trainer, accelerator="gpu",devices=1, callbacks=callbacks)
     trainer.fit(classifier, train_loader, val_loader)
 
 

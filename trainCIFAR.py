@@ -55,7 +55,7 @@ def train(cfg: DictConfig):
     samples = 1000
     ind = np.random.choice(len(data_old), len(data_new),replace=False)
     data_old = data_old[ind, :,:,:]
-    data = (data_old,data_new)
+    data = torch.utils.data.TensorDataset(data_old,data_new)
     train_data, val_data, test_data =torch.utils.data.random_split(data, [1000, 200, 821])
     logger.info(OmegaConf.to_yaml(cfg))
 
@@ -77,7 +77,7 @@ def train(cfg: DictConfig):
     resp, rese, resl, resm, resme, resscf = [], [], [], [], [], []
 
 
-    test_loader = torch.utils.data.DataLoader(test_data, batch_size = 2*samples)
+    test_loader = torch.utils.data.DataLoader(test_data, batch_size = 821)
 
     stats = trainer.test(classifier, test_loader)
     resm.append(stats[0]['MMD-D P'])

@@ -24,7 +24,7 @@ from experiments.synthetic import Data
 logger = logging.getLogger(__name__)
 @hydra.main(config_path='configs', config_name='defaultCIFAR.yaml')
 def train(cfg: DictConfig):
-    data_old = datasets.CIFAR10(root=cfg.folder, download=False, train=False,
+    data_old = datasets.CIFAR10(root=cfg.data.folder, download=False, train=False,
                                     transform=transforms.Compose([
                                         transforms.Resize(cfg.data.img_size),
                                         transforms.ToTensor(),

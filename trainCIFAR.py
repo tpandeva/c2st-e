@@ -24,7 +24,7 @@ from experiments.synthetic import Data
 logger = logging.getLogger(__name__)
 @hydra.main(config_path='configs', config_name='defaultCIFAR.yaml')
 def train(cfg: DictConfig):
-    data_old = datasets.CIFAR10(root='/Users/teddy/Documents/Documents – Teodora’s MacBook Pro/c2st-e/experiments/cifar10', download=False, train=False,
+    data_old = datasets.CIFAR10(root=cfg.folder, download=False, train=False,
                                     transform=transforms.Compose([
                                         transforms.Resize(cfg.data.img_size),
                                         transforms.ToTensor(),
@@ -37,7 +37,7 @@ def train(cfg: DictConfig):
         data_old = imgs
 
 
-    data_new = np.load('/Users/teddy/Documents/Documents – Teodora’s MacBook Pro/c2st-e/experiments/cifar10/cifar10.1_v4_data.npy')
+    data_new =np.load(cfg.data.file)
     data_new = np.transpose(data_new, [0, 3, 1, 2])
     ind_M = np.random.choice(len(data_new), len(data_new), replace=False)
     data_new = data_new[ind_M]

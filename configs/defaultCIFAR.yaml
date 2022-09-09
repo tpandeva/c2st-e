@@ -4,6 +4,8 @@ defaults:
 seed: 0
 data:
   type: "cifar"
+  folder: "/var/scratch/tpandeva/c2st-e/experiments/cifar10"
+  file: "/var/scratch/tpandeva/c2st-e/experiments/cifar10/cifar10.1_v4_data.npy"
   img_size: 6
   batch_size: 100
 model:

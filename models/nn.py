@@ -202,7 +202,93 @@ class MMD_DClassifier(pl.LightningModule):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.optimizer.lr)
         return optimizer
 
+class Discriminator(nn.Module):
+    def __init__(self, hparams: DictConfig):
+        super().__init__()
+        self.save_hyperparameters(hparams)
+        def discriminator_block(in_filters, out_filters, bn=True):
+            block = [nn.Conv2d(in_filters, out_filters, 3, 2, 1),
+                     nn.LeakyReLU(0.2, inplace=True), nn.Dropout2d(0)]
+            if bn:
+                block.append(nn.BatchNorm2d(out_filters, 0.8))
+            return block
 
+        self.model = nn.Sequential(
+            *discriminator_block(3, 16, bn=False),
+            *discriminator_block(16, 32),
+            *discriminator_block(32, 64),
+            *discriminator_block(64, 128),
+        )
+
+        # The height and width of downsampled image
+        ds_size = hparams.output_size // 2 ** 4
+        self.adv_layer = nn.Sequential(
+            nn.Linear(128 * ds_size ** 2, 300),
+            nn.ReLU(),
+            nn.Linear(300, 2))
+
+    def forward(self, img):
+        out = self.model(img)
+        out = out.view(out.shape[0], -1)
+        validity = self.adv_layer(out)
+
+        return validity
+
+    def training_step(self, batch, batch_idx):
+        # Very simple training loop
+        x, y = batch
+        y_hat = self(x)
+        loss = F.cross_entropy(y_hat, y.long())
+        self.log('train_loss', loss, on_step=True)
+        return loss
+
+    def validation_step(self, batch, batch_idx):
+        x, y = batch
+
+        # y_hat = self(x)
+        # y_hat = torch.argmax(y_hat, dim=1)
+        y_hat = self(x)
+        acc = F.cross_entropy(y_hat, y.long())  # torch.sum(y == y_hat)/x.shape[0]
+        self.log('val_loss', acc, on_epoch=True, prog_bar=True)
+        return acc
+
+    def test_le(self, x, y, N_per, alpha=0.05):
+
+        N = x.shape[0]
+        f = torch.nn.Softmax()
+        STAT = abs((x[:, 0] * y).type(torch.FloatTensor).mean() - (x[:, 0] * (1 - y)).type(torch.FloatTensor).mean())
+        N1 = y.sum().int()
+        STAT_vector = np.zeros(N_per)
+        for r in range(N_per):
+            ind = np.random.choice(N, N, replace=False)
+            # divide into new X, Y
+            ind_X = ind[:N1]
+            ind_Y = ind[N1:]
+            # print(indx)
+            STAT_vector[r] = abs(
+                x[ind_X, 0].type(torch.FloatTensor).mean() - x[ind_Y, 0].type(torch.FloatTensor).mean())
+        S_vector = np.sort(STAT_vector)
+        threshold = S_vector[np.int(np.ceil(N_per * (1 - alpha)))]
+        h = 0
+        if STAT.item() > threshold:
+            h = 1
+        return h, threshold, STAT
+
+    def test_step(self, batch, batch_idx):
+        x, y = batch
+        y_hat = self(x)
+        c2ste = c2st_e(y, y_hat)
+        c2stp = c2st(y, y_hat)
+        _, thres, c2stl = self.test_le(y_hat, y, 100)
+        self.log('test_c2stp', c2stp, on_epoch=True, prog_bar=True)
+        self.log('test_c2stl_thres', thres, on_epoch=True, prog_bar=True)
+        self.log('test_c2stl_c2stl', c2stl, on_epoch=True, prog_bar=True)
+        self.log('test_c2ste', c2ste, on_epoch=True, prog_bar=True)
+
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.optimizer.lr)
+        return optimizer
 class Featurizer(pl.LightningModule):
     def __init__(self, hparams: DictConfig):
         super().__init__()

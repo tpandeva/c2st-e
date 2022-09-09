@@ -8,7 +8,7 @@ from torch.autograd import Variable
 import torch.nn as nn
 import torch
 import pytorch_lightning as pl
-from models.nn import Featurizer
+from models.nn import Featurizer, Discriminator
 from pytorch_lightning import Callback
 import torch
 import hydra
@@ -52,18 +52,24 @@ def train(cfg: DictConfig):
     data_new = data_trans
     del data_trans
 
-    samples = 1000
     ind = np.random.choice(len(data_old), len(data_new),replace=False)
     data_old = data_old[ind, :,:,:]
-    data = torch.utils.data.TensorDataset(data_old,data_new)
-    train_data, val_data, test_data =torch.utils.data.random_split(data, [1000, 200, 821])
+    if 1:
+        data = torch.utils.data.TensorDataset(data_old,data_new)
+        train_data, val_data, test_data =torch.utils.data.random_split(data, [1000, 200, 821])
+    x = torch.concat((data_old,data_new)).float()
+    y = torch.concat((torch.ones(int(data_old.shape[0])), torch.zeros(int(data_new.shape[0]))))
+
+    data = torch.utils.data.TensorDataset(x, y)
+    train_data, val_data, test_data = torch.utils.data.random_split(data, [2000, 400, 1642])
+
     logger.info(OmegaConf.to_yaml(cfg))
 
     pl.seed_everything(cfg.seed)
 
             # Initialize the network
     callbacks: List[Callback] = hydra.utils.instantiate(cfg.early_stopping)
-    classifier = Featurizer(cfg.model)#MMD_DClassifier(cfg.model)
+    classifier = Discriminator(cfg.model)#Featurizer(cfg.model)#MMD_DClassifier(cfg.model)
 
             # Train
 

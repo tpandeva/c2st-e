@@ -202,7 +202,7 @@ class MMD_DClassifier(pl.LightningModule):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.optimizer.lr)
         return optimizer
 
-class Discriminator(nn.Module):
+class Discriminator(pl.LightningModule):
     def __init__(self, hparams: DictConfig):
         super().__init__()
         self.save_hyperparameters(hparams)

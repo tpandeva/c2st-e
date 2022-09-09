@@ -203,3 +203,78 @@ class MMD_DClassifier(pl.LightningModule):
         return optimizer
 
 
+class Featurizer(pl.LightningModule):
+    def __init__(self, hparams: DictConfig):
+        super().__init__()
+        self.save_hyperparameters(hparams)
+        def discriminator_block(in_filters, out_filters, bn=True):
+            block = [nn.Conv2d(in_filters, out_filters, 3, 2, 1),
+                     nn.LeakyReLU(0.2, inplace=True), nn.Dropout2d(0)] #0.25
+            if bn:
+                block.append(nn.BatchNorm2d(out_filters, 0.8))
+            return block
+
+        self.model = nn.Sequential(
+            *discriminator_block(3, 16, bn=False),
+            *discriminator_block(16, 32),
+            *discriminator_block(32, 64),
+            *discriminator_block(64, 128),
+        )
+
+        # The height and width of downsampled image
+        ds_size = hparams.output_size// 2 ** 4
+        self.adv_layer = nn.Sequential(
+            nn.Linear(128 * ds_size ** 2, 300))
+        self.eps, self.sigma, self.sigma0_u = torch.nn.Parameter(torch.log(torch.from_numpy(np.random.rand(1) * (10 ** (-10)))),
+                                                                 requires_grad=True), \
+                                              torch.nn.Parameter(torch.from_numpy(np.ones(1) * np.sqrt(2 * 32 * 32)),
+                                                                 requires_grad=True), \
+                                              torch.nn.Parameter(torch.from_numpy(np.sqrt(np.ones(1) * 0.005)),
+                                                                 requires_grad=True)
+
+    def forward(self, x,y):
+        img = torch.concat((x,y))
+        out = self.model(img)
+        out = out.view(out.shape[0], -1)
+        feature = self.adv_layer(out)
+        mmd2, varEst, Kxyxy = MMDu(feature[0:x.shape[0], :], feature[x.shape[0]:, :], x, y, self.sigma ** 2,
+                                   self.sigma0_u ** 2, torch.exp(self.eps) / (1 + torch.exp(self.eps)))
+        return mmd2, varEst, Kxyxy
+
+    def training_step(self, batch, batch_idx):
+        # Very simple training loop
+        x, y = batch
+        mmd2, varEst, Kxyxy = self(x, y)
+        mmd_value_temp = -1 * mmd2
+        mmd_std_temp = torch.sqrt(varEst + 10 ** (-8))
+        loss = torch.div(mmd_value_temp, mmd_std_temp)
+        self.log('train_loss', loss, on_step=True)
+        return loss
+
+    def validation_step(self, batch, batch_idx):
+        x, y = batch
+
+        mmd2, varEst, Kxyxy = self(x, y)
+        mmd_value_temp = -1 * mmd2
+        mmd_std_temp = torch.sqrt(varEst + 10 ** (-8))
+        STAT_u = torch.div(mmd_value_temp, mmd_std_temp)
+
+        self.log('val_loss', STAT_u, on_epoch=True, prog_bar=True)
+        return STAT_u
+
+    def test_step(self, batch, batch_idx):
+        x, y = batch
+
+        mmd2, varEst, Kxyxy = self(x, y)
+        mmd_value_temp = -1 * mmd2
+        mmd_std_temp = torch.sqrt(varEst + 10 ** (-8))
+        STAT_u = torch.div(mmd_value_temp, mmd_std_temp)
+        self.log('test_loss', STAT_u, on_epoch=True, prog_bar=True)
+
+        nx = x.shape[0]
+        mmd_value_nn, p_val, rest = mmd2_permutations(Kxyxy, nx, permutations=200)
+        self.log('MMD-D P', p_val, on_epoch=True, prog_bar=True)
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.optimizer.lr)
+        return optimizer

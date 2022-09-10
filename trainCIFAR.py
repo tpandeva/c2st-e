@@ -86,7 +86,11 @@ def train(cfg: DictConfig):
     test_loader = torch.utils.data.DataLoader(test_data, batch_size = 821)
 
     stats = trainer.test(classifier, test_loader)
-    resm.append(stats[0]['MMD-D P'])
+    resp.append(stats[0]['test_c2stp'])
+    rese.append(stats[0]['test_c2ste'])
+    resl.append(stats[0]['test_c2stl_c2stl'] > stats[0]['test_c2stl_thres'])
+
+   # resm.append(stats[0]['MMD-D P'])
     del classifier, trainer
 
 

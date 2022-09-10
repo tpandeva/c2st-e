@@ -51,6 +51,7 @@ def train(cfg: DictConfig):
         data_trans[i] = TT(d0)
     data_new = data_trans
     del data_trans
+    resp, rese, resl, resm, resme, resscf = [], [], [], [], [], []
     for s in range(10):
         pl.seed_everything(s)
         ind = np.random.choice(len(data_old), len(data_new),replace=False)
@@ -81,7 +82,7 @@ def train(cfg: DictConfig):
 
 
                 # Initialize the network
-        resp, rese, resl, resm, resme, resscf = [], [], [], [], [], []
+
 
 
         test_loader = torch.utils.data.DataLoader(test_data, batch_size = 821)

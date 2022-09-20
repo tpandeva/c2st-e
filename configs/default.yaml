@@ -9,10 +9,10 @@ data:
   noise: 2
 model:
   loss: "cross_entropy"
-  test: "mmd-d"
+  test: None
   input_size: 2
   hidden_layer_size: 20
-  output_size: 50
+  output_size: 2
   emp1: 2
   optimizer:
     lr: 0.0005

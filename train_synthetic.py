@@ -58,7 +58,7 @@ def train(cfg: DictConfig):
             train_data = Data(cfg.data, samples, s)
             val_data = Data(cfg.data, samples, s+12345)
             train_loader = torch.utils.data.DataLoader(train_data, batch_size=samples, shuffle=True)
-            val_loader = torch.utils.data.DataLoader(val_data, batch_size=samples)
+            val_loader = torch.utils.data.DataLoader(val_data, batch_size=samples,  shuffle=True)
             trainer = pl.Trainer(**cfg.trainer, callbacks=callbacks)
             trainer.fit(classifier, train_loader, val_loader)
 
@@ -92,7 +92,7 @@ def train(cfg: DictConfig):
                 stats = trainer.test(classifier, test_loader)
                 resp.append(stats[0]['test_c2stp'])
                 rese.append(stats[0]['test_c2ste'])
-                resl.append(stats[0]['test_c2stl_c2stl'] > stats[0]['test_c2stl_thres'])
+                resl.append(stats[0]['test_c2stl'])
                 dataset  = Data(cfg.data, samples, 1000*(k+1)+s, with_labels=False)
                 test_loader = torch.utils.data.DataLoader(dataset, batch_size= samples)
                 stats = trainerMMD.test(classifierMMD, test_loader)

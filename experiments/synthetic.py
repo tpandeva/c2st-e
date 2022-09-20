@@ -69,8 +69,12 @@ class Data(Dataset):
             Y = dt[0][y==0]
 
         if with_labels:
+            ind = np.random.choice(len(Y)+len(X), len(Y)+len(X), replace=False)
             self.x = torch.concat((X, Y)).float()
-            self.y = torch.concat((torch.ones(int(X.shape[0])), torch.zeros(int(X.shape[0]))))
+            self.x = self.x[ind]
+            self.y = torch.concat((torch.ones(int(X.shape[0])),
+                                   torch.zeros(int(X.shape[0]))))
+            self.y = self.y[ind]
         else:
             self.x = X.float()
             self.y = Y.float()

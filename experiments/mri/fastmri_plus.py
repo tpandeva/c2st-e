@@ -307,10 +307,6 @@ class PathologiesSliceDataset(torch.utils.data.Dataset):
         # Equalise number of pathology examples.
         # 1) Get min. of num clean / pathology slices for this data partition.
         # 2) Randomly throw out extra slices.
-        print("Total", total_slices)
-        print("Total halved", total_slices_halved)
-        print("Total halved filtered", total_slices_halved_filtered)
-        print("Remaining (should match above)", len(self.raw_samples))
         clean_counts = {True: 0, False: 0}
         for sample in self.raw_samples:
             fname = sample.fname
@@ -338,6 +334,13 @@ class PathologiesSliceDataset(torch.utils.data.Dataset):
                 self.raw_samples.pop(i)
                 max_slices -= 1
         print("Final remaining", len(self.raw_samples))
+
+        # self.datasets = []
+        # # Partition data in stratified fashion
+        # for i in range(self.num_datasets):
+        #     num_slices_in_dataset = len(self.raw_samples) // self.num_datasets
+        #
+        #     self.datasets =
 
     def first_dataset(self):
         # Go to first dataset

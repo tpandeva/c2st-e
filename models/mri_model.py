@@ -19,11 +19,14 @@ class ModelModule:
         lr,
         total_lr_gamma,
         num_epochs,
+        do_early_stopping=True,
     ):
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.model = PathologyClassifier(
             in_chans, chans, num_pool_layers, drop_prob, input_shape
         ).to(self.device)
+
+        self.early_stopping = do_early_stopping
 
         # Architecture params
         self.in_chans = in_chans
@@ -70,6 +73,7 @@ class ModelModule:
             self.optimiser.zero_grad()
 
             image = image.unsqueeze(1).to(self.device)
+            # Positive class = any pathology
             target = (
                 (slice_pathologies.sum(dim=1) > 0).unsqueeze(1).float().to(self.device)
             )
@@ -119,13 +123,14 @@ class ModelModule:
                 #                 break
 
                 image = image.unsqueeze(1).to(self.device)
+                # Positive class = any pathology
                 target = (
                     (slice_pathologies.sum(dim=1) > 0)
                     .unsqueeze(1)
                     .float()
                     .to(self.device)
                 )
-                #                 target = torch.stack((target, 1-target), dim=1).to(self.device)
+                # target = torch.stack((target, 1-target), dim=1).to(self.device)
 
                 logits = self.model(image)
 
@@ -151,11 +156,18 @@ class ModelModule:
         train_losses = []
         val_losses = {}  # Not computed every epoch, so dict to keep track of epochs.
         val_accs = {}
+        best_val_loss = 1000
         for epoch in range(self.num_epochs):
             if epoch % print_every == 0:
                 print(f"Epoch {epoch + 1}/{self.num_epochs}")
             if val_loader is not None and epoch % eval_every == 0:
                 val_loss, val_acc, val_extra_output = self.val_epoch(val_loader)
+                if self.early_stopping:
+                    if val_loss <= best_val_loss:
+                        best_val_loss = val_loss
+                    else:  # Stop training at this epoch: should technically have stopped at model of previous epoch.
+                        print("Stopping early...")
+                        break
                 val_losses[epoch] = val_loss
                 val_accs[epoch] = val_acc
                 extra_output[epoch]["val"] = val_extra_output
@@ -212,6 +224,7 @@ class ModelModule:
                 total_samples += image.shape[0]
                 # Preprocessing
                 image = image.unsqueeze(1).to(self.device)
+                # Positive class = any pathology
                 target = (slice_pathologies.sum(dim=1) > 0).unsqueeze(1).float()
                 all_targets.append(target)
                 target = target.to(self.device)
@@ -238,7 +251,7 @@ class ModelModule:
         extra_output["logits"] = torch.cat(all_logits, axis=0)
         extra_output["targets"] = torch.cat(all_targets, axis=0)
         print(
-            f"Test loss: {test_loss:.3f}, Test acc: {test_acc:.2f}, time: {test_time:.2f}s"
+            f" Test loss: {test_loss:.3f}, Test acc: {test_acc:.2f}, time: {test_time:.2f}s"
         )
         return test_loss, test_acc, extra_output
 
@@ -273,7 +286,7 @@ class PathologyClassifier(nn.Module):
         down_factor = 4 ** num_pool_layers
         self.enc_size = input_shape[0] * input_shape[1] * up_factor // down_factor
 
-        self.unet = unet = Unet(
+        self.unet = Unet(
             in_chans=in_chans,
             out_chans=1,  # Unused
             chans=chans,
@@ -291,5 +304,3 @@ class PathologyClassifier(nn.Module):
         )  # Shape: [N, enc_size] = [16, 102400] (e.g.)
         logits = self.linear(enc)
         return logits
-
-

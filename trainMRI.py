@@ -9,7 +9,6 @@ from pathlib import Path
 from functools import partial
 from torch.distributions import Normal
 import argparse
-import matplotlib.pyplot as plt
 
 from experiments.mri.fastmri_plus import get_pathology_info
 from experiments.mri.sampling_dataset import (
@@ -19,6 +18,13 @@ from experiments.mri.sampling_dataset import (
     PathologyLabelTransform,
 )
 from models.sampling_mri_model import SamplingModelModule
+
+
+"""
+conda activate c2st
+python trainMRI.py --num_dataset_samples 100 --num_epochs 30 --do_early_stopping True \
+     --dataset_sizes 200 400 1000 2000 3000 4000 5000
+"""
 
 
 def str2bool(v):
@@ -152,7 +158,7 @@ def c2st_prob1(y, prob1):
     matches = y == y_hat
     accuracy = torch.sum(matches) / y.shape[0]
     n_te = y.shape[0]
-    stat = 2 * np.sqrt(n_te) * (accuracy - 0.5)
+    stat = 2 * np.sqrt(n_te) * torch.abs(accuracy - 0.5)
     pval = 1 - Normal(0, 1).cdf(stat).item()
     # p-value OR list of p-values if num_batches is not None
     return pval

@@ -1,6 +1,5 @@
 import os
 import random
-import copy
 import xml.etree.ElementTree as etree
 from pathlib import Path
 from typing import (

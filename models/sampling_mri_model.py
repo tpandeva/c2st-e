@@ -21,11 +21,13 @@ class SamplingModelModule:
         total_lr_gamma,
         num_epochs,
         do_early_stopping=True,
+        patience=3,
     ):
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.model = PathologyClassifier(in_chans, chans, num_pool_layers, drop_prob, input_shape).to(self.device)
 
         self.early_stopping = do_early_stopping
+        self.patience = patience
 
         # Architecture params
         self.in_chans = in_chans
@@ -146,15 +148,22 @@ class SamplingModelModule:
         val_losses = {}  # Not computed every epoch, so dict to keep track of epochs.
         val_accs = {}
         best_val_loss = 1000
+        patience_count = 0
         for epoch in range(self.num_epochs):
             if epoch % print_every == 0:
                 print(f"Epoch {epoch + 1}/{self.num_epochs}")
             if val_loader is not None and epoch % eval_every == 0:
                 val_loss, val_acc, val_extra_output = self.val_epoch(val_loader)
+                # Early stopping block
                 if self.early_stopping:
                     if val_loss <= best_val_loss:
+                        patience_count = 0
                         best_val_loss = val_loss
-                    else:  # Stop training at this epoch: should technically have stopped at model of previous epoch.
+                    else:
+                        patience_count += 1
+
+                    # Stop training at this epoch: should technically have stopped before model performance dropped.
+                    if patience_count == self.patience:
                         print("Stopping early...")
                         break
                 val_losses[epoch] = val_loss

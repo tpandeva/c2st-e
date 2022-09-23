@@ -28,9 +28,7 @@ def h1_mean_var_gram(Kx, Ky, Kxy, is_var_computed, use_1sample_U=True):
         yy = torch.div((torch.sum(Ky) - torch.sum(torch.diag(Ky))), (ny * (ny - 1)))
         # one-sample U-statistic.
         if use_1sample_U:
-            xy = torch.div(
-                (torch.sum(Kxy) - torch.sum(torch.diag(Kxy))), (nx * (ny - 1))
-            )
+            xy = torch.div((torch.sum(Kxy) - torch.sum(torch.diag(Kxy))), (nx * (ny - 1)))
         else:
             xy = torch.div(torch.sum(Kxy), (nx * ny))
         mmd2 = xx - 2 * xy + yy
@@ -76,15 +74,11 @@ def MMDu(
     Dyy_org = Pdist2(Y_org, Y_org)
     Dxy_org = Pdist2(X_org, Y_org)
     if is_smooth:
-        Kx = (1 - epsilon) * torch.exp(
-            -(Dxx / sigma0) - (Dxx_org / sigma)
-        ) ** L + epsilon * torch.exp(-Dxx_org / sigma)
-        Ky = (1 - epsilon) * torch.exp(
-            -(Dyy / sigma0) - (Dyy_org / sigma)
-        ) ** L + epsilon * torch.exp(-Dyy_org / sigma)
-        Kxy = (1 - epsilon) * torch.exp(
-            -(Dxy / sigma0) - (Dxy_org / sigma)
-        ) ** L + epsilon * torch.exp(-Dxy_org / sigma)
+        Kx = (1 - epsilon) * torch.exp(-(Dxx / sigma0) - (Dxx_org / sigma)) ** L + epsilon * torch.exp(-Dxx_org / sigma)
+        Ky = (1 - epsilon) * torch.exp(-(Dyy / sigma0) - (Dyy_org / sigma)) ** L + epsilon * torch.exp(-Dyy_org / sigma)
+        Kxy = (1 - epsilon) * torch.exp(-(Dxy / sigma0) - (Dxy_org / sigma)) ** L + epsilon * torch.exp(
+            -Dxy_org / sigma
+        )
     else:
         Kx = torch.exp(-Dxx / sigma0)
         Ky = torch.exp(-Dyy / sigma0)

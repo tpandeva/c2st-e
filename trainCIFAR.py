@@ -53,9 +53,7 @@ def train(cfg: DictConfig):
             ]
         ),
     )
-    dataloader_old = torch.utils.data.DataLoader(
-        data_old, batch_size=10000, shuffle=True, num_workers=1
-    )
+    dataloader_old = torch.utils.data.DataLoader(data_old, batch_size=10000, shuffle=True, num_workers=1)
 
     for i, (imgs, Labels) in enumerate(dataloader_old):
         data_old = imgs
@@ -89,22 +87,16 @@ def train(cfg: DictConfig):
             # ind_s = np.random.choice(len(data_s), len(data_s), replace=False)
             # data_s = data_s[ind_s]
             data = torch.utils.data.TensorDataset(dataold, data_new)
-            train_data, val_data, test_data = torch.utils.data.random_split(
-                data, [1000, 0, 1021]
-            )
+            train_data, val_data, test_data = torch.utils.data.random_split(data, [1000, 0, 1021])
             test_loader = torch.utils.data.DataLoader(test_data, batch_size=1021)
         else:
             x = torch.concat((dataold, data_new)).float()
             # x = pretrained_model(x.cuda()).cuda()
 
-            y = torch.concat(
-                (torch.ones(int(dataold.shape[0])), torch.zeros(int(data_new.shape[0])))
-            )
+            y = torch.concat((torch.ones(int(dataold.shape[0])), torch.zeros(int(data_new.shape[0]))))
 
             data = torch.utils.data.TensorDataset(x, y)
-            train_data, val_data, test_data = torch.utils.data.random_split(
-                data, [2000, 0, 2042]
-            )
+            train_data, val_data, test_data = torch.utils.data.random_split(data, [2000, 0, 2042])
             test_loader = torch.utils.data.DataLoader(test_data, batch_size=2042)
 
         logger.info(OmegaConf.to_yaml(cfg))
@@ -112,22 +104,14 @@ def train(cfg: DictConfig):
         # Initialize the network
         callbacks: List[Callback] = hydra.utils.instantiate(cfg.early_stopping)
         if is_mmd:
-            classifier = Featurizer(
-                cfg.model
-            )  # Regressor(cfg.model, pretrained_model)#MMD_DClassifier(cfg.model)
+            classifier = Featurizer(cfg.model)  # Regressor(cfg.model, pretrained_model)#MMD_DClassifier(cfg.model)
         else:
-            classifier = Classifier(
-                cfg.model, pretrained_model
-            )  # Featurizer(cfg.model)#MMD_DClassifier(cfg.model)
+            classifier = Classifier(cfg.model, pretrained_model)  # Featurizer(cfg.model)#MMD_DClassifier(cfg.model)
 
         # Train
 
-        train_loader = torch.utils.data.DataLoader(
-            train_data, batch_size=cfg.data.batch_size, shuffle=True
-        )
-        val_loader = torch.utils.data.DataLoader(
-            val_data, batch_size=cfg.data.batch_size
-        )
+        train_loader = torch.utils.data.DataLoader(train_data, batch_size=cfg.data.batch_size, shuffle=True)
+        val_loader = torch.utils.data.DataLoader(val_data, batch_size=cfg.data.batch_size)
         trainer = pl.Trainer(**cfg.trainer, accelerator="gpu", devices=1)
         trainer.fit(classifier, train_loader)
 

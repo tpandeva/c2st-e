@@ -13,7 +13,10 @@ import matplotlib.pyplot as plt
 
 from experiments.mri.fastmri_plus import get_pathology_info
 from experiments.mri.sampling_dataset import (
-    FilteredSlices, SampledSlices, populate_slice_filter_with_labels, PathologyLabelTransform
+    FilteredSlices,
+    SampledSlices,
+    populate_slice_filter_with_labels,
+    PathologyLabelTransform,
 )
 from models.sampling_mri_model import SamplingModelModule
 
@@ -75,7 +78,7 @@ def create_arg_parser():
     parser.add_argument(
         "--dataset_sizes",
         default=[5000],
-        type=float,
+        type=int,
         nargs="+",
         help=(
             "Dataset sizes to train on. Stratified splits will be made. E.g. if set to 1000. Will sample train and "
@@ -89,33 +92,21 @@ def create_arg_parser():
         type=int,
         help="Number of datasets to sample and train on for each dataset size (used for computing errors).",
     )
-    parser.add_argument(
-        "--crop_size", default=320, type=int, help="MRI image crop size (square)."
-    )
+    parser.add_argument("--crop_size", default=320, type=int, help="MRI image crop size (square).")
     parser.add_argument("--batch_size", default=64, type=int, help="Train batch size.")
-    parser.add_argument(
-        "--num_workers", default=20, type=int, help="Number of dataloader workers."
-    )
+    parser.add_argument("--num_workers", default=20, type=int, help="Number of dataloader workers.")
     # Unet params
-    parser.add_argument(
-        "--in_chans", default=1, type=int, help="Unet encoder in channels."
-    )
-    parser.add_argument(
-        "--chans", default=16, type=int, help="Unet encoder first-layer channels."
-    )
+    parser.add_argument("--in_chans", default=1, type=int, help="Unet encoder in channels.")
+    parser.add_argument("--chans", default=16, type=int, help="Unet encoder first-layer channels.")
     parser.add_argument(
         "--num_pool_layers",
         default=4,
         type=int,
         help="Unet encoder number of pool layers.",
     )
-    parser.add_argument(
-        "--drop_prob", default=0.0, type=float, help="Unet encoder dropout probability."
-    )
+    parser.add_argument("--drop_prob", default=0.0, type=float, help="Unet encoder dropout probability.")
     # Learning params
-    parser.add_argument(
-        "--num_epochs", default=5, type=int, help="Number of training epochs."
-    )
+    parser.add_argument("--num_epochs", default=5, type=int, help="Number of training epochs.")
     parser.add_argument("--lr", default=1e-5, type=float, help="Learning rate.")
     parser.add_argument(
         "--total_lr_gamma",
@@ -149,8 +140,7 @@ def c2st_e_prob1(y, prob1):
     pred_prob_class1 = prob1
 
     log_eval = torch.sum(
-        y * torch.log(pred_prob_class1 / emp_freq_class1)
-        + (1 - y) * torch.log(pred_prob_class0 / emp_freq_class0)
+        y * torch.log(pred_prob_class1 / emp_freq_class1) + (1 - y) * torch.log(pred_prob_class0 / emp_freq_class0)
     ).double()
     e_val = torch.exp(log_eval).item()
     return e_val
@@ -227,19 +217,16 @@ if __name__ == "__main__":
         clean_volumes = {**no_pathologies, **any_pathologies}
     else:
         clean_volumes = None
-        raise NotImplementedError(
-            "Haven't thought of what to do if there are unchecked volumes yet."
-        )
+        raise NotImplementedError("Haven't thought of what to do if there are unchecked volumes yet.")
 
-    slice_filter = partial(
-        partial(populate_slice_filter_with_labels, clean_volumes), all_pathologies
-    )
+    slice_filter = partial(partial(populate_slice_filter_with_labels, clean_volumes), all_pathologies)
 
     # ----------------------------
     # ------ fastMRI data ------
     # ----------------------------
 
     # Create initial big dataset
+    # All filtered data: {False: 3618, True: 8311}, can sample up to 2x 3618 = 7236.
     pathology_transform = PathologyLabelTransform(crop_size=args.crop_size)
     # Just filter out stuff we really don't want to use. Then sample from this dataset.
     full_dataset = FilteredSlices(
@@ -251,16 +238,20 @@ if __name__ == "__main__":
         quick_test=args.quick_test,
     )
 
-    results_dict = {
-        dataset_size: {
-            dataset_ind: {} for dataset_ind in range(args.num_dataset_samples)
-        } for dataset_size in args.dataset_sizes
-    }
-
+    results_dict = {}
+    # Best if dataset sizes are divisible by 40.
+    # Half these points are used for each test (2x Type-I, 1x Type-II)
+    # Half of that is train-test split.
+    # 20% of train data is made validation instead.
+    # And all this is split over 2 classes.
+    # So, 2 * 2 * 2 * 5 (20%) = 40 as divisor.
     for dataset_size in args.dataset_sizes:
-        print(f"\n ----- Sample rate: {dataset_size} ----- ")
+        print(f"\n ----- Dataset size: {dataset_size} ----- ")
+        size_results_dict = {dataset_ind: {} for dataset_ind in range(args.num_dataset_samples)}
+
         # Sample datasets of this size.
         for dataset_ind in range(args.num_dataset_samples):
+            print(f"\n  ----- Dataset index: {dataset_ind} ----- ")
             # Do this experiment a bunch of times so we can get an error estimate.
             # NOTE: Can also do partition split to treat as different experiments!
             slice_splits = SampledSlices(
@@ -270,6 +261,7 @@ if __name__ == "__main__":
             )
             # Loop over Type-Ia, Ib, and II experiment settings.
             for setting, (train, val, test) in slice_splits.datasets_dict.items():
+                print(f"\n   ----- Setting: {setting} ----- ")
                 train_loader = torch.utils.data.DataLoader(
                     dataset=train,
                     batch_size=args.batch_size,
@@ -308,9 +300,13 @@ if __name__ == "__main__":
                     args.do_early_stopping,
                 )
 
-                train_losses, val_losses, val_accs, extra_output, total_time = module.train(
-                    train_loader, val_loader, print_every=1, eval_every=1
-                )
+                (
+                    train_losses,
+                    val_losses,
+                    val_accs,
+                    extra_output,
+                    total_time,
+                ) = module.train(train_loader, val_loader, print_every=1, eval_every=1)
                 print(f"Total time: {total_time:.2f}s")
 
                 # val_loss_x = [key for key in sorted(val_losses.keys(), key=lambda x: int(x))]
@@ -334,7 +330,17 @@ if __name__ == "__main__":
                 p_val_c2st = c2st_prob1(targets, test_prob1)
                 print(f"     p-value: {p_val_c2st:.4f} (actual: {p_val_c2st})")
 
-                results_dict[dataset_size][dataset_ind][setting] = {"e_val": e_val, "p_val": p_val_c2st}
+                size_results_dict[dataset_ind][setting] = {
+                    "e_val": e_val,
+                    "p_val": p_val_c2st,
+                    "test_loss": test_loss,
+                    "test_acc": test_acc,
+                }
+
+        results_dict[dataset_size] = size_results_dict
+        # Saving results
+        with open(save_dir / f"results_size{dataset_size}.json", "w") as f:
+            json.dump({str(key): val for key, val in size_results_dict.items()}, f, indent=4)
 
     # Saving results
     with open(save_dir / "results.json", "w") as f:

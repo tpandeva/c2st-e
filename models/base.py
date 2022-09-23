@@ -37,10 +37,7 @@ class C2ST(pl.LightningModule):
         f = torch.nn.Softmax()
         x = f(x)
         N1 = y.sum().int()
-        STAT = abs(
-            (x[y == 1, 0]).type(torch.FloatTensor).mean()
-            - (x[y == 0, 0]).type(torch.FloatTensor).mean()
-        )
+        STAT = abs((x[y == 1, 0]).type(torch.FloatTensor).mean() - (x[y == 0, 0]).type(torch.FloatTensor).mean())
 
         STAT_vector = np.zeros(N_per)
         for r in range(N_per):
@@ -48,8 +45,7 @@ class C2ST(pl.LightningModule):
             ind_X = ind[:N1]
             ind_Y = ind[N1:]
             STAT_vector[r] = abs(
-                x[ind_X, 0].type(torch.FloatTensor).mean()
-                - x[ind_Y, 0].type(torch.FloatTensor).mean()
+                x[ind_X, 0].type(torch.FloatTensor).mean() - x[ind_Y, 0].type(torch.FloatTensor).mean()
             )
         S_vector = np.sort(STAT_vector)
         threshold = S_vector[np.int(np.ceil(N_per * (1 - alpha)))]

@@ -39,9 +39,7 @@ def populate_slice_filter_with_labels(clean_volumes, all_pathologies, raw_sample
 
     pathologies_of_volume = metadata["pathologies"]
     # Pathologies in this slice
-    pathologies_of_slice = pathologies_of_volume[
-        (pathologies_of_volume["slice"] == slice_ind)
-    ]
+    pathologies_of_slice = pathologies_of_volume[(pathologies_of_volume["slice"] == slice_ind)]
     # Replace empty list with n-hot of pathologies (needs to be n-hot for batching later)
     # `artifact` is also included as positive class.
     n_hot_pathologies = np.zeros(len(all_pathologies), dtype=int)
@@ -149,10 +147,7 @@ class FilteredSlices:
             for slice_ind in range(num_slices):
                 if use_center_slices_only:
                     # Use only center half of slices, because edges contains more noise.
-                    if (
-                        slice_ind < num_slices // 4
-                        or slice_ind > num_slices * 3 // 4
-                    ):
+                    if slice_ind < num_slices // 4 or slice_ind > num_slices * 3 // 4:
                         continue
                 total_slices_halved += 1
                 raw_sample = FastMRIPathologyDataSample(fname, slice_ind, metadata, [], None)
@@ -162,20 +157,14 @@ class FilteredSlices:
                     new_raw_samples.append(filtered_sample)
                     total_slices_halved_filtered += 1
             self.raw_samples += new_raw_samples
-            del metadata[
-                "pathologies"
-            ]  # Delete df from sample for later collation.
+            del metadata["pathologies"]  # Delete df from sample for later collation.
 
         # Here we have obtained filtered data (only center samples from good volumes). Samples can come from here.
 
         if num_cols:
-            self.raw_samples = [
-                ex
-                for ex in self.raw_samples
-                if ex[2]["encoding_size"][1] in num_cols  # type: ignore
-            ]
+            self.raw_samples = [ex for ex in self.raw_samples if ex[2]["encoding_size"][1] in num_cols]  # type: ignore
 
-        print("All filtered data", self.get_label_counts(self.raw_samples))
+        print("All filtered data:", self.get_label_counts(self.raw_samples))
 
     def _retrieve_metadata(self, fname):
         with h5py.File(fname, "r") as hf:
@@ -203,9 +192,7 @@ class FilteredSlices:
 
             num_slices = hf["kspace"].shape[0]
 
-            pathologies = self.pathology_df[
-                self.pathology_df["file"] == fname.name[:-3]
-            ]
+            pathologies = self.pathology_df[self.pathology_df["file"] == fname.name[:-3]]
 
             metadata = {
                 "padding_left": padding_left,
@@ -259,14 +246,12 @@ class SampledSlices:
         self.dataset_size = dataset_size
 
         # Get stratified split of size dataset_size form base_dataset of correct size.
-        self.stratified_data = self.stratify_true_label(base_dataset.raw_samples, dataset_size)
-
-        # ----- Assign data to partitions -----
+        # We actually want this to be different stratified data for Type-I and Type-II!
 
         # Type-II error
         # Use half the full data for type two, to correspond with type1 data size
-        data_copy2 = copy.deepcopy(self.stratified_data)  # in case we mutate
-        sampled_data_for_type2, _ = self.stratified_split_true_label(data_copy2, dataset_size // 2)
+        data2 = self.stratify_true_label(base_dataset.raw_samples, dataset_size)
+        sampled_data_for_type2, _ = self.stratified_split_true_label(data2, dataset_size // 2)
         # Half train, half test
         train_split2, test_split2 = self.stratified_split_true_label(
             sampled_data_for_type2, len(sampled_data_for_type2) // 2
@@ -281,8 +266,8 @@ class SampledSlices:
         # Type-I error
         # Have two options: true class 0 and true class 1 training. Do both.
         # Get data with label 0 and with label 1
-        data_copy1 = copy.deepcopy(self.stratified_data)  # Deepcopy because label will be mutated later.
-        true0_data, true1_data = self.split_data_by_true_label(data_copy1)  # 1a, 1b
+        data1 = self.stratify_true_label(base_dataset.raw_samples, dataset_size)
+        true0_data, true1_data = self.split_data_by_true_label(data1)  # 1a, 1b
 
         # Type-1a, use true0 data, split stratified, but with re-assigned label!
         train_split1a, test_split1a = self.stratified_split_false_labels(true0_data, False)
@@ -302,27 +287,25 @@ class SampledSlices:
         test = SliceDataset(test_split1b, self.transform)
         type1b_data = {train, val, test}
 
-        print("all", self.get_label_counts(self.stratified_data))
-        print("\n")
-        print("type1_full", self.get_label_counts(data_copy1))
-        print("type2_full", self.get_label_counts(data_copy2))
-        print("\n")
-        print("type1a_true0", self.get_label_counts(true0_data))
-        print("type1b_true1", self.get_label_counts(true1_data))
-        print("type2_sampled", self.get_label_counts(sampled_data_for_type2))
-        print("\n")
-        print("type1a_train", self.get_label_counts(train_split1a))
-        print("type1a_val", self.get_label_counts(val_split1a))
-        print("type1a_test", self.get_label_counts(test_split1a))
-        print("\n")
-        print("type1b_train", self.get_label_counts(train_split1b))
-        print("type1b_val", self.get_label_counts(val_split1b))
-        print("type1b_test", self.get_label_counts(test_split1b))
-        print("\n")
-        print("type2_train", self.get_label_counts(train_split2))
-        print("type2_val", self.get_label_counts(val_split2))
-        print("type2_test", self.get_label_counts(test_split2))
-        print("\n")
+        print("type1_sample_full", self.get_label_counts(data1))
+        print("type2_sample_full", self.get_label_counts(data2))
+        # print("\n")
+        # print("type1a_true0", self.get_label_counts(true0_data))
+        # print("type1b_true1", self.get_label_counts(true1_data))
+        # print("type2_sampled", self.get_label_counts(sampled_data_for_type2))
+        # print("\n")
+        # print("type1a_train", self.get_label_counts(train_split1a))
+        # print("type1a_val", self.get_label_counts(val_split1a))
+        # print("type1a_test", self.get_label_counts(test_split1a))
+        # print("\n")
+        # print("type1b_train", self.get_label_counts(train_split1b))
+        # print("type1b_val", self.get_label_counts(val_split1b))
+        # print("type1b_test", self.get_label_counts(test_split1b))
+        # print("\n")
+        # print("type2_train", self.get_label_counts(train_split2))
+        # print("type2_val", self.get_label_counts(val_split2))
+        # print("type2_test", self.get_label_counts(test_split2))
+        # print("\n")
 
         # Combined
         self.datasets_dict = {"1a": type1a_data, "1b": type1b_data, "2": type2_data}
@@ -427,9 +410,9 @@ class SliceDataset(torch.utils.data.Dataset):
     """
 
     def __init__(
-            self,
-            slices,
-            transform: Optional[Callable] = None,
+        self,
+        slices,
+        transform: Optional[Callable] = None,
     ):
         """
         Args:
@@ -447,12 +430,11 @@ class SliceDataset(torch.utils.data.Dataset):
         return len(self.raw_samples)
 
     def __getitem__(self, i: int):
-        print(self.raw_samples)
         fname, dataslice, metadata, slice_pathologies, label = self.raw_samples[i]
 
         with h5py.File(fname, "r") as hf:
             kspace = hf["kspace"][dataslice]
-            image = hf["reconstruction_rss"][dataslice] if self.recons_key in hf else None
+            image = hf["reconstruction_rss"][dataslice] if "reconstruction_rss" in hf else None
             attrs = dict(hf.attrs)
             attrs.update(metadata)
 
@@ -466,12 +448,10 @@ class SliceDataset(torch.utils.data.Dataset):
                 fname.name,
                 dataslice,
                 slice_pathologies,
-                label
+                label,
             )
         else:
-            sample = self.transform(
-                kspace, image, attrs, fname.name, dataslice, slice_pathologies, label
-            )
+            sample = self.transform(kspace, image, attrs, fname.name, dataslice, slice_pathologies, label)
 
         return sample
 
@@ -501,17 +481,7 @@ class PathologyLabelTransform:
         slice_ind: int,
         pathology_labels: np.ndarray,
         label: bool,
-    ) -> Tuple[
-        torch.Tensor,
-        torch.Tensor,
-        torch.Tensor,
-        torch.Tensor,
-        dict,
-        str,
-        int,
-        np.ndarray,
-        bool,
-    ]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict, str, int, np.ndarray, bool,]:
         """
         Args:
             kspace: Input k-space of shape (num_coils, rows, cols) for
@@ -569,4 +539,14 @@ class PathologyLabelTransform:
         image = torch.flip(image, dims=(0,))
 
         # Image constructed from kspace
-        return kspace, image, mean, std, attrs, fname, slice_ind, pathology_labels, label
+        return (
+            kspace,
+            image,
+            mean,
+            std,
+            attrs,
+            fname,
+            slice_ind,
+            pathology_labels,
+            label,
+        )

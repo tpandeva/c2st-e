@@ -185,9 +185,7 @@ class TransposeConvBlock(nn.Module):
         self.out_chans = out_chans
 
         self.layers = nn.Sequential(
-            nn.ConvTranspose2d(
-                in_chans, out_chans, kernel_size=2, stride=2, bias=False
-            ),
+            nn.ConvTranspose2d(in_chans, out_chans, kernel_size=2, stride=2, bias=False),
             nn.InstanceNorm2d(out_chans),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
         )

@@ -26,9 +26,7 @@ class SimpleClassifier(C2ST):
             torch.nn.Linear(hparams.hidden_layer_size, hparams.output_size),  #
         )
         if hparams.test == "mmd-d":
-            self.W = torch.nn.Parameter(
-                torch.randn([hparams.output_size, 2]).float(), requires_grad=True
-            )
+            self.W = torch.nn.Parameter(torch.randn([hparams.output_size, 2]).float(), requires_grad=True)
             self.b = torch.nn.Parameter(torch.randn([1, 2]).float(), requires_grad=True)
 
     def forward(self, x, y=None):
@@ -67,15 +65,9 @@ class MMD_DClassifier(MMD):
             torch.nn.Linear(hparams.hidden_layer_size, hparams.output_size),
         )
         self.eps, self.sigma, self.sigma0_u = (
-            torch.nn.Parameter(
-                torch.from_numpy(np.random.rand(1) * (10 ** (-10))), requires_grad=True
-            ),
-            torch.nn.Parameter(
-                torch.from_numpy(np.sqrt(np.random.rand(1) * 0.3)), requires_grad=True
-            ),
-            torch.nn.Parameter(
-                torch.from_numpy(np.sqrt(np.random.rand(1) * 0.002)), requires_grad=True
-            ),
+            torch.nn.Parameter(torch.from_numpy(np.random.rand(1) * (10 ** (-10))), requires_grad=True),
+            torch.nn.Parameter(torch.from_numpy(np.sqrt(np.random.rand(1) * 0.3)), requires_grad=True),
+            torch.nn.Parameter(torch.from_numpy(np.sqrt(np.random.rand(1) * 0.002)), requires_grad=True),
         )
 
     def forward(self, x, y):
@@ -163,12 +155,8 @@ class Featurizer(MMD):
                 torch.log(torch.from_numpy(np.random.rand(1) * (10 ** (-10)))),
                 requires_grad=True,
             ),
-            torch.nn.Parameter(
-                torch.from_numpy(np.ones(1) * np.sqrt(2 * 32 * 32)), requires_grad=True
-            ),
-            torch.nn.Parameter(
-                torch.from_numpy(np.sqrt(np.ones(1) * 0.005)), requires_grad=True
-            ),
+            torch.nn.Parameter(torch.from_numpy(np.ones(1) * np.sqrt(2 * 32 * 32)), requires_grad=True),
+            torch.nn.Parameter(torch.from_numpy(np.sqrt(np.ones(1) * 0.005)), requires_grad=True),
         )
 
     def forward(self, x, y):
@@ -214,19 +202,11 @@ class Regressor(pl.LightningModule):
 
         self.pm = pretrained_model
 
-        self.model = nn.Sequential(
-            nn.Linear(model_d, 300), nn.ReLU(), nn.Linear(300, 300)
-        )
+        self.model = nn.Sequential(nn.Linear(model_d, 300), nn.ReLU(), nn.Linear(300, 300))
         self.eps, self.sigma, self.sigma0_u = (
-            torch.nn.Parameter(
-                torch.from_numpy(np.random.rand(1) * (10 ** (-10))), requires_grad=True
-            ),
-            torch.nn.Parameter(
-                torch.from_numpy(np.sqrt(np.random.rand(1) * 0.3)), requires_grad=True
-            ),
-            torch.nn.Parameter(
-                torch.from_numpy(np.sqrt(np.random.rand(1) * 0.002)), requires_grad=True
-            ),
+            torch.nn.Parameter(torch.from_numpy(np.random.rand(1) * (10 ** (-10))), requires_grad=True),
+            torch.nn.Parameter(torch.from_numpy(np.sqrt(np.random.rand(1) * 0.3)), requires_grad=True),
+            torch.nn.Parameter(torch.from_numpy(np.sqrt(np.random.rand(1) * 0.002)), requires_grad=True),
         )
 
     def forward(self, x, y):

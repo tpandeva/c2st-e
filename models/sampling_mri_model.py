@@ -23,9 +23,7 @@ class SamplingModelModule:
         do_early_stopping=True,
     ):
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        self.model = PathologyClassifier(
-            in_chans, chans, num_pool_layers, drop_prob, input_shape
-        ).to(self.device)
+        self.model = PathologyClassifier(in_chans, chans, num_pool_layers, drop_prob, input_shape).to(self.device)
 
         self.early_stopping = do_early_stopping
 
@@ -45,9 +43,7 @@ class SamplingModelModule:
         self.optimiser = torch.optim.Adam(self.model.parameters(), lr=lr)
 
         self.lr_gamma = total_lr_gamma ** (1 / num_epochs)
-        self.scheduler = torch.optim.lr_scheduler.ExponentialLR(
-            self.optimiser, self.lr_gamma
-        )
+        self.scheduler = torch.optim.lr_scheduler.ExponentialLR(self.optimiser, self.lr_gamma)
 
     def train_epoch(self, loader):
         start_time = time.perf_counter()
@@ -169,9 +165,7 @@ class SamplingModelModule:
                 )
 
             train_loss, train_extra_output = self.train_epoch(train_loader)
-            print(
-                f" Train loss: {train_loss:.3f}, time: {train_extra_output['train_epoch_time']:.2f}s"
-            )
+            print(f" Train loss: {train_loss:.3f}, time: {train_extra_output['train_epoch_time']:.2f}s")
             train_losses.append(np.mean(train_loss))
             extra_output[epoch]["train"] = train_extra_output
 
@@ -179,9 +173,7 @@ class SamplingModelModule:
         val_losses[epoch] = val_loss
         val_accs[epoch] = val_acc
         extra_output[epoch]["val"] = val_extra_output
-        print(
-            f"   Val loss: {val_loss:.3f}, Val acc: {val_acc:.2f}, time: {val_extra_output['val_epoch_time']:.2f}s"
-        )
+        print(f"   Val loss: {val_loss:.3f}, Val acc: {val_acc:.2f}, time: {val_extra_output['val_epoch_time']:.2f}s")
 
         return (
             train_losses,
@@ -243,9 +235,7 @@ class SamplingModelModule:
         extra_output["test_time"] = test_time
         extra_output["logits"] = torch.cat(all_logits, axis=0)
         extra_output["targets"] = torch.cat(all_targets, axis=0)
-        print(
-            f" Test loss: {test_loss:.3f}, Test acc: {test_acc:.2f}, time: {test_time:.2f}s"
-        )
+        print(f" Test loss: {test_loss:.3f}, Test acc: {test_acc:.2f}, time: {test_time:.2f}s")
         return test_loss, test_acc, extra_output
 
 
@@ -272,9 +262,7 @@ class PathologyClassifier(nn.Module):
     def __init__(self, in_chans, chans, num_pool_layers, drop_prob, input_shape):
         super().__init__()
 
-        assert (
-            input_shape[0] == input_shape[1]
-        ), "`enc_size` computation assumes square images (potentially)."
+        assert input_shape[0] == input_shape[1], "`enc_size` computation assumes square images (potentially)."
         up_factor = chans * 2 ** num_pool_layers
         down_factor = 4 ** num_pool_layers
         self.enc_size = input_shape[0] * input_shape[1] * up_factor // down_factor
@@ -289,11 +277,7 @@ class PathologyClassifier(nn.Module):
         self.linear = LinearModel(self.enc_size, 1)
 
     def forward(self, image):
-        enc, _ = self.unet.encoder(
-            image
-        )  # Shape: [N, C, H, W] = [16, 256, 20, 20] (e.g.)
-        enc = torch.flatten(
-            enc, start_dim=1
-        )  # Shape: [N, enc_size] = [16, 102400] (e.g.)
+        enc, _ = self.unet.encoder(image)  # Shape: [N, C, H, W] = [16, 256, 20, 20] (e.g.)
+        enc = torch.flatten(enc, start_dim=1)  # Shape: [N, enc_size] = [16, 102400] (e.g.)
         logits = self.linear(enc)
         return logits

@@ -17,9 +17,7 @@ def me(X, Y, alpha, is_train, test_locs, gwidth, J=1, seed=15):
             "tol_fun": 1e-4,  # stop if the objective does not increase more than this.
             "seed": seed + 5,  # random seed
         }
-        test_locs, gwidth, info = tst.MeanEmbeddingTest.optimize_locs_width(
-            tst_data, alpha, **op
-        )
+        test_locs, gwidth, info = tst.MeanEmbeddingTest.optimize_locs_width(tst_data, alpha, **op)
         return test_locs, gwidth
     else:
         met_opt = tst.MeanEmbeddingTest(test_locs, gwidth, alpha)
@@ -45,9 +43,7 @@ def scf(X, Y, alpha, is_train, test_freqs, gwidth, J=1, seed=15):
             "gwidth_step_size": 0.01,
             "tol_fun": 1e-4,
         }
-        test_freqs, gwidth, info = tst.SmoothCFTest.optimize_freqs_width(
-            tst_data, alpha, **op
-        )
+        test_freqs, gwidth, info = tst.SmoothCFTest.optimize_freqs_width(tst_data, alpha, **op)
         return test_freqs, gwidth
     else:
         scf_opt = tst.SmoothCFTest(test_freqs, gwidth, alpha=alpha)

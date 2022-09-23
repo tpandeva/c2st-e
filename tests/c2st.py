@@ -19,10 +19,7 @@ def c2st_l(S, y, N_per, alpha, model_C2ST):
     N1 = int(torch.sum(y).to_numpy())
     f = torch.nn.Softmax()
     output = f(model_C2ST(S))
-    STAT = abs(
-        (y * output.type(torch.FloatTensor)).mean()
-        - ((1 - y) * output.type(torch.FloatTensor)).mean()
-    )
+    STAT = abs((y * output.type(torch.FloatTensor)).mean() - ((1 - y) * output.type(torch.FloatTensor)).mean())
     STAT_vector = np.zeros(N_per)
     for r in range(N_per):
         ind = np.random.choice(N, N, replace=False)
@@ -31,8 +28,7 @@ def c2st_l(S, y, N_per, alpha, model_C2ST):
         ind_Y = ind[N1:]
         # print(indx)
         STAT_vector[r] = abs(
-            output[ind_X, 0].type(torch.FloatTensor).mean()
-            - output[ind_Y, 0].type(torch.FloatTensor).mean()
+            output[ind_X, 0].type(torch.FloatTensor).mean() - output[ind_Y, 0].type(torch.FloatTensor).mean()
         )
     S_vector = np.sort(STAT_vector)
     threshold = S_vector[np.int(np.ceil(N_per * (1 - alpha)))]

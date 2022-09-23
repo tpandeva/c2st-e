@@ -47,22 +47,14 @@ def train(cfg: DictConfig):
                     ),
                     1,
                 )
-                y = torch.concat(
-                    (torch.zeros(int(1.5 * samples)), torch.ones(int(1.5 * samples)))
-                )
+                y = torch.concat((torch.zeros(int(1.5 * samples)), torch.ones(int(1.5 * samples))))
                 dataset = TensorDataset(x.float(), y)
-                train_data, val_data, test_data = torch.utils.data.random_split(
-                    dataset, [samples, samples, samples]
-                )
+                train_data, val_data, test_data = torch.utils.data.random_split(dataset, [samples, samples, samples])
                 # Wrap data with appropriate data loaders
-                train_loader = torch.utils.data.DataLoader(
-                    train_data, batch_size=cfg.data.batch_size, shuffle=True
-                )
+                train_loader = torch.utils.data.DataLoader(train_data, batch_size=cfg.data.batch_size, shuffle=True)
                 ind = train_data.indices
                 emp1 = torch.mean(y[ind])
-                val_loader = torch.utils.data.DataLoader(
-                    val_data, batch_size=cfg.data.batch_size
-                )
+                val_loader = torch.utils.data.DataLoader(val_data, batch_size=cfg.data.batch_size)
                 test_loader = torch.utils.data.DataLoader(test_data, batch_size=samples)
                 overrides = [f"model.emp1={emp1}"]
 
@@ -78,23 +70,15 @@ def train(cfg: DictConfig):
 
             train_data = Data(cfg.data, samples, s)
             val_data = Data(cfg.data, samples, s + 12345)
-            train_loader = torch.utils.data.DataLoader(
-                train_data, batch_size=samples, shuffle=True
-            )
-            val_loader = torch.utils.data.DataLoader(
-                val_data, batch_size=samples, shuffle=True
-            )
+            train_loader = torch.utils.data.DataLoader(train_data, batch_size=samples, shuffle=True)
+            val_loader = torch.utils.data.DataLoader(val_data, batch_size=samples, shuffle=True)
             trainer = pl.Trainer(**cfg.trainer, callbacks=callbacks)
             trainer.fit(classifier, train_loader, val_loader)
 
             train_data = Data(cfg.data, samples, s, with_labels=False)
             val_data = Data(cfg.data, samples, s + 12345, with_labels=False)
-            train_loader = torch.utils.data.DataLoader(
-                train_data, batch_size=cfg.data.batch_size, shuffle=True
-            )
-            val_loader = torch.utils.data.DataLoader(
-                val_data, batch_size=cfg.data.batch_size
-            )
+            train_loader = torch.utils.data.DataLoader(train_data, batch_size=cfg.data.batch_size, shuffle=True)
+            val_loader = torch.utils.data.DataLoader(val_data, batch_size=cfg.data.batch_size)
 
             # Initialize the network
             callbacks: List[Callback] = hydra.utils.instantiate(cfg.early_stopping)
@@ -132,9 +116,7 @@ def train(cfg: DictConfig):
             for k in range(100):
 
                 dataset = Data(cfg.data, samples, 1000 * (k + 1) + s, with_labels=True)
-                test_loader = torch.utils.data.DataLoader(
-                    dataset, batch_size=2 * samples
-                )
+                test_loader = torch.utils.data.DataLoader(dataset, batch_size=2 * samples)
 
                 stats = trainer.test(classifier, test_loader)
                 resp.append(stats[0]["test_c2stp"])

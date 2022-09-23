@@ -37,16 +37,15 @@ def c2st_e(y, logits, emp1=None, num_batches=None):
 
     if num_batches is None:
         log_eval = torch.sum(
-            y * torch.log(pred_prob_class1 / emp_freq_class1)
-            + (1 - y) * torch.log(pred_prob_class0 / emp_freq_class0)
+            y * torch.log(pred_prob_class1 / emp_freq_class1) + (1 - y) * torch.log(pred_prob_class0 / emp_freq_class0)
         ).double()
         eval = torch.exp(log_eval)
 
     else:
         eval = 0
-        ratios = y * torch.log(pred_prob_class1 / emp_freq_class1) + (
-            1 - y
-        ) * torch.log(pred_prob_class0 / emp_freq_class0)
+        ratios = y * torch.log(pred_prob_class1 / emp_freq_class1) + (1 - y) * torch.log(
+            pred_prob_class0 / emp_freq_class0
+        )
         ind = torch.randperm(ratios.shape[0])
         ratios = ratios[ind]
         ratio_batches = [ratios[i::num_batches] for i in range(num_batches)]

@@ -74,9 +74,7 @@ def populate_slice_filter(clean_volumes, all_pathologies, raw_sample):
 
     pathologies_of_volume = metadata["pathologies"]
     # Pathologies in this slice
-    pathologies_of_slice = pathologies_of_volume[
-        (pathologies_of_volume["slice"] == slice_ind)
-    ]
+    pathologies_of_slice = pathologies_of_volume[(pathologies_of_volume["slice"] == slice_ind)]
     # Replace empty list with n-hot of pathologies (needs to be n-hot for batching later)
     # `artifact` is also included as positive class.
     n_hot_pathologies = np.zeros(len(all_pathologies), dtype=int)
@@ -262,10 +260,7 @@ class PathologiesSliceDataset(torch.utils.data.Dataset):
                 for slice_ind in range(num_slices):
                     if use_center_slices_only:
                         # Use only center half of slices, because edges contains more noise.
-                        if (
-                            slice_ind < num_slices // 4
-                            or slice_ind > num_slices * 3 // 4
-                        ):
+                        if slice_ind < num_slices // 4 or slice_ind > num_slices * 3 // 4:
                             continue
                     total_slices_halved += 1
                     raw_sample = FastMRIRawDataSample(fname, slice_ind, metadata, [])
@@ -275,9 +270,7 @@ class PathologiesSliceDataset(torch.utils.data.Dataset):
                         new_raw_samples.append(filtered_sample)
                         total_slices_halved_filtered += 1
                 self.raw_samples += new_raw_samples
-                del metadata[
-                    "pathologies"
-                ]  # Delete df from sample for later collation.
+                del metadata["pathologies"]  # Delete df from sample for later collation.
 
             if dataset_cache.get(root) is None and use_dataset_cache:
                 dataset_cache[root] = self.raw_samples
@@ -298,18 +291,10 @@ class PathologiesSliceDataset(torch.utils.data.Dataset):
             random.shuffle(vol_names)
             num_volumes = round(len(vol_names) * volume_sample_rate)
             sampled_vols = vol_names[:num_volumes]
-            self.raw_samples = [
-                raw_sample
-                for raw_sample in self.raw_samples
-                if raw_sample[0].stem in sampled_vols
-            ]
+            self.raw_samples = [raw_sample for raw_sample in self.raw_samples if raw_sample[0].stem in sampled_vols]
 
         if num_cols:
-            self.raw_samples = [
-                ex
-                for ex in self.raw_samples
-                if ex[2]["encoding_size"][1] in num_cols  # type: ignore
-            ]
+            self.raw_samples = [ex for ex in self.raw_samples if ex[2]["encoding_size"][1] in num_cols]  # type: ignore
 
         if type1:
             raise NotImplementedError()
@@ -403,9 +388,7 @@ class PathologiesSliceDataset(torch.utils.data.Dataset):
 
             num_slices = hf["kspace"].shape[0]
 
-            pathologies = self.pathology_df[
-                self.pathology_df["file"] == fname.name[:-3]
-            ]
+            pathologies = self.pathology_df[self.pathology_df["file"] == fname.name[:-3]]
 
             metadata = {
                 "padding_left": padding_left,
@@ -446,9 +429,7 @@ class PathologiesSliceDataset(torch.utils.data.Dataset):
                 slice_pathologies,
             )
         else:
-            sample = self.transform(
-                kspace, image, attrs, fname.name, dataslice, slice_pathologies
-            )
+            sample = self.transform(kspace, image, attrs, fname.name, dataslice, slice_pathologies)
 
         return sample
 
@@ -477,16 +458,7 @@ class PathologyTransform:
         fname: str,
         slice_ind: int,
         pathology_labels: np.ndarray,
-    ) -> Tuple[
-        torch.Tensor,
-        torch.Tensor,
-        torch.Tensor,
-        torch.Tensor,
-        dict,
-        str,
-        int,
-        np.ndarray,
-    ]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict, str, int, np.ndarray,]:
         """
         Args:
             kspace: Input k-space of shape (num_coils, rows, cols) for

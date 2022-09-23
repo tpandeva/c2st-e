@@ -64,12 +64,7 @@ class Data(Dataset):
             X = torch.from_numpy(X)
             Y = torch.from_numpy(Y)
         elif data.type == "two_moons":
-            dt = [
-                torch.from_numpy(el)
-                for el in make_moons(
-                    n_samples=samples, noise=data.noise, random_state=seed
-                )
-            ]
+            dt = [torch.from_numpy(el) for el in make_moons(n_samples=samples, noise=data.noise, random_state=seed)]
             y = dt[1]
             X = dt[0][y == 1]
             Y = dt[0][y == 0]
@@ -78,9 +73,7 @@ class Data(Dataset):
             ind = np.random.choice(len(Y) + len(X), len(Y) + len(X), replace=False)
             self.x = torch.concat((X, Y)).float()
             self.x = self.x[ind]
-            self.y = torch.concat(
-                (torch.ones(int(X.shape[0])), torch.zeros(int(X.shape[0])))
-            )
+            self.y = torch.concat((torch.ones(int(X.shape[0])), torch.zeros(int(X.shape[0]))))
             self.y = self.y[ind]
         else:
             self.x = X.float()

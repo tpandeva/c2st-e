@@ -129,33 +129,21 @@ def create_arg_parser():
         type=int,
         help="Number of datasets to combine into one experiment.",
     )
-    parser.add_argument(
-        "--crop_size", default=320, type=int, help="MRI image crop size (square)."
-    )
+    parser.add_argument("--crop_size", default=320, type=int, help="MRI image crop size (square).")
     parser.add_argument("--batch_size", default=64, type=int, help="Train batch size.")
-    parser.add_argument(
-        "--num_workers", default=20, type=int, help="Number of dataloader workers."
-    )
+    parser.add_argument("--num_workers", default=20, type=int, help="Number of dataloader workers.")
     # Unet params
-    parser.add_argument(
-        "--in_chans", default=1, type=int, help="Unet encoder in channels."
-    )
-    parser.add_argument(
-        "--chans", default=16, type=int, help="Unet encoder first-layer channels."
-    )
+    parser.add_argument("--in_chans", default=1, type=int, help="Unet encoder in channels.")
+    parser.add_argument("--chans", default=16, type=int, help="Unet encoder first-layer channels.")
     parser.add_argument(
         "--num_pool_layers",
         default=4,
         type=int,
         help="Unet encoder number of pool layers.",
     )
-    parser.add_argument(
-        "--drop_prob", default=0.0, type=float, help="Unet encoder dropout probability."
-    )
+    parser.add_argument("--drop_prob", default=0.0, type=float, help="Unet encoder dropout probability.")
     # Learning params
-    parser.add_argument(
-        "--num_epochs", default=5, type=int, help="Number of training epochs."
-    )
+    parser.add_argument("--num_epochs", default=5, type=int, help="Number of training epochs.")
     parser.add_argument("--lr", default=1e-5, type=float, help="Learning rate.")
     parser.add_argument(
         "--total_lr_gamma",
@@ -190,23 +178,19 @@ def c2st_e_prob1(y, prob1, num_batches=None):
 
     if num_batches is None:
         log_eval = torch.sum(
-            y * torch.log(pred_prob_class1 / emp_freq_class1)
-            + (1 - y) * torch.log(pred_prob_class0 / emp_freq_class0)
+            y * torch.log(pred_prob_class1 / emp_freq_class1) + (1 - y) * torch.log(pred_prob_class0 / emp_freq_class0)
         ).double()
         e_val = torch.exp(log_eval).item()
 
     else:
         # e_val = 0
-        ratios = y * torch.log(pred_prob_class1 / emp_freq_class1) + (
-            1 - y
-        ) * torch.log(pred_prob_class0 / emp_freq_class0)
+        ratios = y * torch.log(pred_prob_class1 / emp_freq_class1) + (1 - y) * torch.log(
+            pred_prob_class0 / emp_freq_class0
+        )
         ind = torch.randperm(ratios.shape[0])
         ratios = ratios[ind]
         ratio_batches = [ratios[i::num_batches] for i in range(num_batches)]
-        e_val = [
-            torch.exp(torch.sum(ratio_batches[i]).double()).item()
-            for i in range(num_batches)
-        ]
+        e_val = [torch.exp(torch.sum(ratio_batches[i]).double()).item() for i in range(num_batches)]
         # for i in range(num_batches):
         #     e_val = e_val + torch.exp(torch.sum(ratio_batches[i]))
         # e_val = e_val / num_batches
@@ -302,13 +286,9 @@ if __name__ == "__main__":
         clean_volumes = {**no_pathologies, **any_pathologies}
     else:
         clean_volumes = None
-        raise NotImplementedError(
-            "Haven't thought of what to do if there are unchecked volumes yet."
-        )
+        raise NotImplementedError("Haven't thought of what to do if there are unchecked volumes yet.")
 
-    slice_filter = partial(
-        partial(populate_slice_filter, clean_volumes), all_pathologies
-    )
+    slice_filter = partial(partial(populate_slice_filter, clean_volumes), all_pathologies)
 
     # ----------------------------
     # ------ fastMRI data ------
@@ -431,14 +411,10 @@ if __name__ == "__main__":
                 p_val_c2st = c2st_prob1(targets, test_prob1, num_batches=None)
                 print(f"     p-value: {p_val_c2st:.4f} (actual: {p_val_c2st})")
             else:  # multiple values
-                e_val = c2st_e_prob1(
-                    targets, test_prob1, num_batches=args.num_test_batches
-                )
+                e_val = c2st_e_prob1(targets, test_prob1, num_batches=args.num_test_batches)
                 e_val_recip = [1 / e_val for e_val in e_val]
                 print(f" 1 / E-values: {e_val_recip}")
-                p_val_c2st = c2st_prob1(
-                    targets, test_prob1, num_batches=args.num_test_batches
-                )
+                p_val_c2st = c2st_prob1(targets, test_prob1, num_batches=args.num_test_batches)
                 print(f"     p-values: {p_val_c2st}")
 
             result_label = (dataset_ind, sample_rate)
@@ -459,39 +435,25 @@ if __name__ == "__main__":
             save_name = save_dir / "per_sample_rate.png"
             # Sample rate 1 corresponds to binary stratified: Train 4436, Val 1632, Test 1168 slices.
             xlabel = "data fraction (of 4436 train, 1632 val, 1168 test)"
-            keys = [
-                key for key in sorted(results_dict.keys(), key=lambda x: float(x[1]))
-            ]  # Sort by sample rate
+            keys = [key for key in sorted(results_dict.keys(), key=lambda x: float(x[1]))]  # Sort by sample rate
             x_vals = [float(key[1]) for key in keys]  # sample rate
-            e_values_recip = np.array(
-                [1 / np.array(results_dict[key]["e_val"]) for key in keys]
-            )  # 1 / e-value
+            e_values_recip = np.array([1 / np.array(results_dict[key]["e_val"]) for key in keys])  # 1 / e-value
             p_values = np.array([results_dict[key]["p_val"] for key in keys])
 
-            if (
-                args.num_test_batches > 1
-            ):  # multiple e-/p-values (one per test batch), compute type-I/II errors
+            if args.num_test_batches > 1:  # multiple e-/p-values (one per test batch), compute type-I/II errors
                 # Fraction of incorrect decisions
                 threshold = 0.05
                 # TODO: check computation correctness
                 if args.type1:
                     title = "Type-I (1)"
                     # Rejection of null is incorrect. Error = mean(#rejections).
-                    e_errors = np.array(
-                        [np.mean(e_ps < threshold) for e_ps in e_values_recip]
-                    )
-                    p_errors = np.array(
-                        [np.mean(p_ps < threshold) for p_ps in p_values]
-                    )
+                    e_errors = np.array([np.mean(e_ps < threshold) for e_ps in e_values_recip])
+                    p_errors = np.array([np.mean(p_ps < threshold) for p_ps in p_values])
                 else:
                     title = "Type-II (2)"
                     # Rejection of null is correct. Error = 1 - mean(#rejections).
-                    e_errors = np.array(
-                        [1 - np.mean(e_ps < threshold) for e_ps in e_values_recip]
-                    )
-                    p_errors = np.array(
-                        [1 - np.mean(p_ps < threshold) for p_ps in p_values]
-                    )
+                    e_errors = np.array([1 - np.mean(e_ps < threshold) for e_ps in e_values_recip])
+                    p_errors = np.array([1 - np.mean(p_ps < threshold) for p_ps in p_values])
 
                 plt.figure(figsize=(8, 5))
                 plt.plot(x_vals, e_errors, c="orange", marker="o", label="e-value")
@@ -505,9 +467,7 @@ if __name__ == "__main__":
                 plt.savefig(save_name)
             else:  # single e-/p-value, plot as function of dataset size. No stat errors reported.
                 plt.figure(figsize=(8, 5))
-                plt.plot(
-                    x_vals, e_values_recip, c="orange", marker="o", label="1 / e-value"
-                )
+                plt.plot(x_vals, e_values_recip, c="orange", marker="o", label="1 / e-value")
                 plt.plot(x_vals, p_values, c="b", marker="o", label="p-value")
                 plt.title("Statistics as function of dataset size", fontsize=18)
                 plt.ylabel("statistic value", fontsize=15)
@@ -524,13 +484,9 @@ if __name__ == "__main__":
             save_name = save_dir / "per_partition.png"
             xlabel = "partition"
             # TODO: plots per partition now, but want to plot combined
-            keys = [
-                key for key in sorted(results_dict.keys(), key=lambda x: int(x[0]))
-            ]  # Sort by dataset_ind
+            keys = [key for key in sorted(results_dict.keys(), key=lambda x: int(x[0]))]  # Sort by dataset_ind
             x_vals = np.array([int(key[0]) for key in keys])  # partition number
-            e_values_recip = [
-                1 / results_dict[key]["e_val"] for key in keys
-            ]  # 1 / e-value
+            e_values_recip = [1 / results_dict[key]["e_val"] for key in keys]  # 1 / e-value
             p_values = [results_dict[key]["p_val"] for key in keys]
 
             plt.figure(figsize=(8, 5))

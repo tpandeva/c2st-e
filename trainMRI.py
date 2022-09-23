@@ -1,36 +1,32 @@
 import random
+from datetime import datetime
 import numpy as np
 import torch
+import json
 import pandas as pd
 import torch.fft
 from pathlib import Path
 from functools import partial
 from torch.distributions import Normal
 import argparse
+import matplotlib.pyplot as plt
 
-from experiments.mri.fastmri_plus import (
-    PathologiesSliceDataset,
-    PathologyTransform,
-    get_pathology_info,
-    populate_slice_filter,
+from experiments.mri.fastmri_plus import get_pathology_info
+from experiments.mri.sampling_dataset import (
+    FilteredSlices, SampledSlices, populate_slice_filter_with_labels, PathologyLabelTransform
 )
-from models.mri_model import ModelModule
+from models.sampling_mri_model import SamplingModelModule
 
 
-# fastMRI, NeurIPS2020 splits
-fastmri_data_folder = Path("/home/timsey/HDD/data/fastMRI/singlecoil")
-train = fastmri_data_folder / "singlecoil_train"
-val = fastmri_data_folder / "singlecoil_val"
-test = fastmri_data_folder / "singlecoil_test"
-
-# fastMRI+
-plus_data_folder = Path("/home/timsey/Projects/fastmri-plus/Annotations/")
-pathology_path = plus_data_folder / "knee.csv"
-checked_path = plus_data_folder / "knee_file_list.csv"
-
-# -------------------------
-# ------ Hyperparams ------
-# -------------------------
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ("yes", "true", "t", "y", "1"):
+        return True
+    elif v.lower() in ("no", "false", "f", "n", "0"):
+        return False
+    else:
+        raise ValueError("Boolean value expected.")
 
 
 def create_arg_parser():
@@ -49,24 +45,19 @@ def create_arg_parser():
         type=int,
         help="Seed for randomness outside of dataset creation.",
     )
+    parser.add_argument(
+        "--save_dir",
+        default="/home/timsey/Projects/c2st-e/results/mri/",
+        type=Path,
+        help="Dir for saving results.",
+    )
+
     # Data args
     parser.add_argument(
-        "--train_dir",
-        default="/home/timsey/HDD/data/fastMRI/singlecoil/singlecoil_train",
+        "--data_dir",
+        default="/home/timsey/HDD/data/fastMRI/singlecoil/singlecoil_all",
         type=Path,
-        help="Path to fastMRI singlecoil knee train data .h5 file dir.",
-    )
-    parser.add_argument(
-        "--val_dir",
-        default="/home/timsey/HDD/data/fastMRI/singlecoil/singlecoil_val",
-        type=Path,
-        help="Path to fastMRI singlecoil knee val data .h5 file dir.",
-    )
-    parser.add_argument(
-        "--test_dir",
-        default="/home/timsey/HDD/data/fastMRI/singlecoil/singlecoil_test",
-        type=Path,
-        help="Path to fastMRI singlecoil knee test data .h5 file dir.",
+        help="Path to fastMRI singlecoil knee data .h5 file dir.",
     )
     parser.add_argument(
         "--pathology_path",
@@ -81,15 +72,22 @@ def create_arg_parser():
         help="Path to fastMRI+ `knee_file_list.csv`.",
     )
     # Experiment params
-    # sample_rates = [0.005, 0.01, 0.02, 0.03, 0.04, 0.05]
     parser.add_argument(
-        "--sample_rates", default=[1], type=int, nargs="+", help="Sample rates to use."
+        "--dataset_sizes",
+        default=[5000],
+        type=float,
+        nargs="+",
+        help=(
+            "Dataset sizes to train on. Stratified splits will be made. E.g. if set to 1000. Will sample train and "
+            "test set of size 500. Compute 2 type-I experiments with size 500, and one type-II experiment with size "
+            "500, randomly sampled from the two classes."
+        ),
     )
     parser.add_argument(
-        "--num_exp",
+        "--num_dataset_samples",
         default=1,
         type=int,
-        help="Number of datasets to combine into one experiment.",
+        help="Number of datasets to sample and train on for each dataset size (used for computing errors).",
     )
     parser.add_argument(
         "--crop_size", default=320, type=int, help="MRI image crop size (square)."
@@ -125,10 +123,22 @@ def create_arg_parser():
         type=float,
         help="lr decay factor (exponential decay).",
     )
+    parser.add_argument(
+        "--do_early_stopping",
+        default=True,
+        type=str2bool,
+        help="Whether to do early stopping on validation data.",
+    )
+    parser.add_argument(
+        "--quick_test",
+        default=False,
+        type=str2bool,
+        help="Do quick run-test (ignore values of these runs).",
+    )
     return parser
 
 
-def c2st_e_prob1(y, prob1, num_batches=None):
+def c2st_e_prob1(y, prob1):
     # H0
     # p(y|x) of MLE under H0: p(y|x) = p(y), is just the empirical frequency of y in the test data.
     emp_freq_class0 = 1 - (y[y == 1]).sum() / y.shape[0]
@@ -138,41 +148,44 @@ def c2st_e_prob1(y, prob1, num_batches=None):
     pred_prob_class0 = 1 - prob1
     pred_prob_class1 = prob1
 
-    if num_batches is None:
-        log_eval = torch.sum(
-            y * torch.log(pred_prob_class1 / emp_freq_class1)
-            + (1 - y) * torch.log(pred_prob_class0 / emp_freq_class0)
-        ).double()
-        e_val = torch.exp(log_eval)
-
-    else:
-        e_val = 0
-        ratios = y * torch.log(pred_prob_class1 / emp_freq_class1) + (
-            1 - y
-        ) * torch.log(pred_prob_class0 / emp_freq_class0)
-        ind = torch.randperm(ratios.shape[0])
-        ratios = ratios[ind]
-        ratio_batches = [ratios[i::num_batches] for i in range(num_batches)]
-        for i in range(num_batches):
-            e_val = e_val + torch.exp(torch.sum(ratio_batches[i]))
-        e_val = e_val / num_batches
-
-    # E-value
+    log_eval = torch.sum(
+        y * torch.log(pred_prob_class1 / emp_freq_class1)
+        + (1 - y) * torch.log(pred_prob_class0 / emp_freq_class0)
+    ).double()
+    e_val = torch.exp(log_eval).item()
     return e_val
 
 
 def c2st_prob1(y, prob1):
     # H0: accuracy=0.5 vs H1: accuracy>0.5
     y_hat = (prob1 > 0.5).long()
-    accuracy = torch.sum(y == y_hat) / y.shape[0]
+    matches = y == y_hat
+    accuracy = torch.sum(matches) / y.shape[0]
     n_te = y.shape[0]
     stat = 2 * np.sqrt(n_te) * (accuracy - 0.5)
-    pval = 1 - Normal(0, 1).cdf(stat)
+    pval = 1 - Normal(0, 1).cdf(stat).item()
+    # p-value OR list of p-values if num_batches is not None
     return pval
 
 
 if __name__ == "__main__":
     args = create_arg_parser().parse_args()
+
+    # Save args
+    date_string = f"{datetime.now():%Y-%m-%d}"
+    time_string = f"{datetime.now():%H:%M:%S}"
+    save_dir = args.save_dir / date_string / time_string
+    save_dir.mkdir(parents=True, exist_ok=False)
+    args_dict = {key: str(value) for key, value in vars(args).items()}
+    with open(save_dir / "args.json", "w") as f:
+        json.dump(args_dict, f, indent=4)
+
+    if args.quick_test:
+        args.num_epochs = 1
+        args.dataset_sizes = [100]  # Will ignored most of data in dataset creation already
+        args.num_dataset_samples = 1
+        args.data_seed = 0
+        args.seed = 0
 
     input_shape = (args.crop_size, args.crop_size)
 
@@ -181,6 +194,9 @@ if __name__ == "__main__":
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
+    # For reproducibility
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print("Device:", device)
@@ -190,9 +206,9 @@ if __name__ == "__main__":
     # ----------------------------
 
     # Skip final row because it's "Knee data" for some reason
-    pathology_df = pd.read_csv(pathology_path, index_col=None, header=0)
+    pathology_df = pd.read_csv(args.pathology_path, index_col=None, header=0)
     check_df = pd.read_csv(
-        checked_path,
+        args.checked_path,
         names=["file"],
         index_col=None,
         header=None,
@@ -200,14 +216,14 @@ if __name__ == "__main__":
         engine="python",
     )
 
-    folders_to_check = [train, val, test]
     not_checked, no_pathologies, any_pathologies, all_pathologies = get_pathology_info(
-        folders_to_check, pathology_df, check_df
+        [args.data_dir], pathology_df, check_df
     )
     print(len(not_checked), len(no_pathologies), len(any_pathologies))
     print(len(all_pathologies), all_pathologies)
 
     if len(not_checked) == 0:
+        # True if clean, False if not clean
         clean_volumes = {**no_pathologies, **any_pathologies}
     else:
         clean_volumes = None
@@ -216,120 +232,123 @@ if __name__ == "__main__":
         )
 
     slice_filter = partial(
-        partial(populate_slice_filter, clean_volumes), all_pathologies
+        partial(populate_slice_filter_with_labels, clean_volumes), all_pathologies
     )
 
     # ----------------------------
     # ------ fastMRI data ------
     # ----------------------------
 
-    pathology_transform = PathologyTransform(crop_size=args.crop_size)
+    # Create initial big dataset
+    pathology_transform = PathologyLabelTransform(crop_size=args.crop_size)
+    # Just filter out stuff we really don't want to use. Then sample from this dataset.
+    full_dataset = FilteredSlices(
+        root=args.data_dir,
+        raw_sample_filter=slice_filter,  # For populating slices with pathologies.
+        pathology_df=pathology_df,  # For volume metadata and for populating slices with pathologies.
+        seed=args.data_seed,
+        use_center_slices_only=True,
+        quick_test=args.quick_test,
+    )
 
-    for sample_rate in sample_rates:
-        print(f"\n ----- Sample rate: {sample_rate} ----- ")
-        train_dataset = PathologiesSliceDataset(
-            root=train,
-            challenge="singlecoil",  # Doesn't do anything right now, because pathologies labeled using RSS.
-            transform=pathology_transform,
-            raw_sample_filter=slice_filter,  # For populating slices with pathologies.
-            pathology_df=pathology_df,  # For volume metadata and for populating slices with pathologies.
-            clean_volumes=clean_volumes,  # For equalising clean VS. pathology volumes.
-            seed=args.data_seed,
-            use_center_slices_only=True,
-            sample_rate=sample_rate,
-            num_datasets=args.num_exp,
-        )
-        val_dataset = PathologiesSliceDataset(
-            root=val,
-            challenge="singlecoil",  # Doesn't do anything right now, because pathologies labeled using RSS.
-            transform=pathology_transform,
-            raw_sample_filter=slice_filter,  # For populating slices with pathologies.
-            pathology_df=pathology_df,  # For volume metadata and for populating slices with pathologies.
-            clean_volumes=clean_volumes,  # For equalising clean VS. pathology volumes.
-            seed=args.data_seed,
-            use_center_slices_only=True,
-            sample_rate=sample_rate,
-            num_datasets=args.num_exp,
-        )
-        test_dataset = PathologiesSliceDataset(
-            root=test,
-            challenge="singlecoil",  # Doesn't do anything right now, because pathologies labeled using RSS.
-            transform=pathology_transform,
-            raw_sample_filter=slice_filter,  # For populating slices with pathologies.
-            pathology_df=pathology_df,  # For volume metadata and for populating slices with pathologies.
-            clean_volumes=clean_volumes,  # For equalising clean VS. pathology volumes.
-            seed=args.data_seed,
-            use_center_slices_only=True,
-            sample_rate=sample_rate,
-            num_datasets=args.num_exp,
-        )
+    results_dict = {
+        dataset_size: {
+            dataset_ind: {} for dataset_ind in range(args.num_dataset_samples)
+        } for dataset_size in args.dataset_sizes
+    }
 
-        # One experiment per dataset
-        for dataset_ind in range(args.num_exp):
-            train_loader = torch.utils.data.DataLoader(
-                dataset=train_dataset,
-                batch_size=args.batch_size,
-                num_workers=args.num_workers,
-                worker_init_fn=None,
-                shuffle=True,
+    for dataset_size in args.dataset_sizes:
+        print(f"\n ----- Sample rate: {dataset_size} ----- ")
+        # Sample datasets of this size.
+        for dataset_ind in range(args.num_dataset_samples):
+            # Do this experiment a bunch of times so we can get an error estimate.
+            # NOTE: Can also do partition split to treat as different experiments!
+            slice_splits = SampledSlices(
+                base_dataset=full_dataset,
+                dataset_size=dataset_size,
+                transform=pathology_transform,
             )
-            val_loader = torch.utils.data.DataLoader(
-                dataset=val_dataset,
-                batch_size=256,
-                num_workers=args.num_workers,
-                worker_init_fn=None,
-                shuffle=False,
-            )
-            test_loader = torch.utils.data.DataLoader(
-                dataset=test_dataset,
-                batch_size=256,
-                num_workers=args.num_workers,
-                worker_init_fn=None,
-                shuffle=False,
-            )
+            # Loop over Type-Ia, Ib, and II experiment settings.
+            for setting, (train, val, test) in slice_splits.datasets_dict.items():
+                train_loader = torch.utils.data.DataLoader(
+                    dataset=train,
+                    batch_size=args.batch_size,
+                    num_workers=args.num_workers,
+                    worker_init_fn=None,
+                    shuffle=True,
+                )
+                val_loader = torch.utils.data.DataLoader(
+                    dataset=val,
+                    batch_size=256,
+                    num_workers=args.num_workers,
+                    worker_init_fn=None,
+                    shuffle=False,
+                )
+                test_loader = torch.utils.data.DataLoader(
+                    dataset=test,
+                    batch_size=256,
+                    num_workers=args.num_workers,
+                    worker_init_fn=None,
+                    shuffle=False,
+                )
 
-            # --------------------------------------
-            # ------ Model, training, testing ------
-            # --------------------------------------
+                # --------------------------------------
+                # ------ Model, training, testing ------
+                # --------------------------------------
 
-            module = ModelModule(
-                args.in_chans,
-                args.chans,
-                args.num_pool_layers,
-                args.drop_prob,
-                input_shape,
-                args.lr,
-                args.total_lr_gamma,
-                args.num_epochs,
-            )
+                module = SamplingModelModule(
+                    args.in_chans,
+                    args.chans,
+                    args.num_pool_layers,
+                    args.drop_prob,
+                    input_shape,
+                    args.lr,
+                    args.total_lr_gamma,
+                    args.num_epochs,
+                    args.do_early_stopping,
+                )
 
-            train_losses, val_losses, val_accs, extra_output, total_time = module.train(
-                train_loader, val_loader, print_every=1, eval_every=1
-            )
-            print(f"Total time: {total_time:.2f}s")
+                train_losses, val_losses, val_accs, extra_output, total_time = module.train(
+                    train_loader, val_loader, print_every=1, eval_every=1
+                )
+                print(f"Total time: {total_time:.2f}s")
 
-            # val_loss_x = [key for key in sorted(val_losses.keys(), key=lambda x: int(x))]
-            # val_loss_y = [val_losses[key] for key in val_loss_x]
-            # val_acc_y = [val_accs[key] for key in val_loss_x]
-            test_loss, test_acc, test_extra_output = module.test(test_loader)
+                # val_loss_x = [key for key in sorted(val_losses.keys(), key=lambda x: int(x))]
+                # val_loss_y = [val_losses[key] for key in val_loss_x]
+                # val_acc_y = [val_accs[key] for key in val_loss_x]
+                test_loss, test_acc, test_extra_output = module.test(test_loader)
 
-            # --------------------------
-            # ------ Sample tests ------
-            # --------------------------
+                # --------------------------
+                # ------ Sample tests ------
+                # --------------------------
 
-            # Targets are 1-dimensional
-            targets = test_extra_output["targets"]
-            # logits are 1-dimensional
-            test_logit1 = test_extra_output["logits"]
-            # test_prob1 is probability of class 1 given by model
-            test_prob1 = torch.sigmoid(test_logit1)
+                # Targets are 1-dimensional
+                targets = test_extra_output["targets"]
+                # logits are 1-dimensional
+                test_logit1 = test_extra_output["logits"]
+                # test_prob1 is probability of class 1 given by model
+                test_prob1 = torch.sigmoid(test_logit1)
 
-            e_val = c2st_e_prob1(targets, test_prob1).item()
-            print(f" 1 / E-value: {1 / e_val:.4f} (actual: {1 / e_val})")
-            p_val_c2st = c2st_prob1(targets, test_prob1).item()
-            print(f"     p-value: {p_val_c2st:.4f} (actual: {p_val_c2st})")
+                e_val = c2st_e_prob1(targets, test_prob1)
+                print(f" 1 / E-value: {1 / e_val:.4f} (actual: {1 / e_val})")
+                p_val_c2st = c2st_prob1(targets, test_prob1)
+                print(f"     p-value: {p_val_c2st:.4f} (actual: {p_val_c2st})")
 
-            if dataset_ind < args.num_exp - 1:
-                train_dataset.next_dataset()
-                val_dataset.next_dataset()
-                test_dataset.next_dataset()
+                results_dict[dataset_size][dataset_ind][setting] = {"e_val": e_val, "p_val": p_val_c2st}
+
+    # Saving results
+    with open(save_dir / "results.json", "w") as f:
+        json.dump({str(key): val for key, val in results_dict.items()}, f, indent=4)
+
+
+# TODO:
+#  - Setup as single big dataset: split in train-test (100 times or so), split train in train-val, all stratified.
+#  - Say big data contains 6000 points. We make type-I and type-II error splits.
+#  - Type-I: get train-test split with 1000 of 0, 1000 of 1 in train, and same in test. Train model on 0, model on 1,
+#     act like they are different classes within, of course.
+#     Then compute e-value for this setting. Do this 100 times, compute 2 type-I errors for this.
+#  - Type-II: get train-test split with 500 of 0, 500 of 1. Train model here (single e-value). Then compute Type-II
+#     error from the 100 experiments and match with type-I.
+#  - Of course, errors depend on alpha, so save e-value for each setting (dataset size: 100x type-Ia, type-Ib, type-II).
+#  - Repeat for different data sizes.
+#  - Then meta-analysis experiment?

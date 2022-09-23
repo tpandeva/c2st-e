@@ -161,6 +161,8 @@ class PathologiesSliceDataset(torch.utils.data.Dataset):
         use_center_slices_only: Optional[bool] = None,
         seed: Optional[int] = None,
         num_datasets: int = 1,
+        quick_test: bool = False,
+        type1: bool = True,
     ):
         """
         Args:
@@ -194,6 +196,8 @@ class PathologiesSliceDataset(torch.utils.data.Dataset):
             seed: random seed for shuffling operations (also affect sample_rate operations).
             use_center_slices_only: bool, whether to use only the center half of volumes.
             num_datasets: int, number of datasets to create.
+            quick_test: ignore 99% of data for quick test.
+            type1: dataset for type1 error (same dist) or type2 error (different dist).
         """
         if challenge not in ("singlecoil", "multicoil"):
             raise ValueError('challenge should be either "singlecoil" or "multicoil"')
@@ -247,6 +251,9 @@ class PathologiesSliceDataset(torch.utils.data.Dataset):
         total_slices_halved_filtered = 0
         if dataset_cache.get(root) is None or not use_dataset_cache:
             files = list(Path(root).iterdir())
+            if quick_test:
+                random.shuffle(files)
+                files = files[: int(len(files) * 0.03)]
             for fname in sorted(files):
                 metadata, num_slices = self._retrieve_metadata(fname)
                 total_slices += num_slices
@@ -304,43 +311,60 @@ class PathologiesSliceDataset(torch.utils.data.Dataset):
                 if ex[2]["encoding_size"][1] in num_cols  # type: ignore
             ]
 
-        # Equalise number of pathology examples.
-        # 1) Get min. of num clean / pathology slices for this data partition.
-        # 2) Randomly throw out extra slices.
-        clean_counts = {True: 0, False: 0}
-        for sample in self.raw_samples:
-            fname = sample.fname
-            name = fname.name[:-3]
-            clean_true_false = clean_volumes[name]
-            clean_counts[clean_true_false] += 1
-        print("Clean vs. pathology counts", clean_counts)
-        max_slices_class = max(clean_counts.keys(), key=(lambda k: clean_counts[k]))
-        min_slices_class = min(clean_counts.keys(), key=(lambda k: clean_counts[k]))
-        max_slices = clean_counts[max_slices_class]
-        # min. of (num clean, num pathology)
-        min_slices = clean_counts[min_slices_class]
+        if type1:
+            raise NotImplementedError()
+        else:
+            # Equalise number of pathology examples.
+            # 1) Get min. of num clean / pathology slices for this data partition.
+            # 2) Randomly throw out extra slices.
+            clean_counts = {True: 0, False: 0}
+            for sample in self.raw_samples:
+                fname = sample.fname
+                name = fname.name[:-3]
+                clean_true_false = clean_volumes[name]
+                clean_counts[clean_true_false] += 1
+            print("Clean vs. pathology counts", clean_counts)
+            max_slices_class = max(clean_counts.keys(), key=(lambda k: clean_counts[k]))
+            min_slices_class = min(clean_counts.keys(), key=(lambda k: clean_counts[k]))
+            max_slices = clean_counts[max_slices_class]
+            # min. of (num clean, num pathology)
+            min_slices = clean_counts[min_slices_class]
 
-        # Shuffle to randomize what we throw out.
-        random.shuffle(self.raw_samples)
-        # Go from the back so we don't mess up the loop when deleting stuff.
-        for i in reversed(range(len(self.raw_samples))):
-            if max_slices == min_slices:
-                break  # Stop once equal number of slices in both classes.
-            sample = self.raw_samples[i]
-            fname = sample.fname
-            name = fname.name[:-3]
-            # Throw out if class of volume is not min_slices_class, until min_slices remain in each class.
-            if clean_volumes[name] != min_slices_class:
-                self.raw_samples.pop(i)
-                max_slices -= 1
-        print("Final remaining", len(self.raw_samples))
+            # Shuffle to randomize what we throw out.
+            random.shuffle(self.raw_samples)
+            # Go from the back so we don't mess up the loop when deleting stuff.
+            for i in reversed(range(len(self.raw_samples))):
+                if max_slices == min_slices:
+                    break  # Stop once equal number of slices in both classes.
+                sample = self.raw_samples[i]
+                fname = sample.fname
+                name = fname.name[:-3]
+                # Throw out if class of volume is not min_slices_class, until min_slices remain in each class.
+                if clean_volumes[name] != min_slices_class:
+                    self.raw_samples.pop(i)
+                    max_slices -= 1
+            print("Final remaining", len(self.raw_samples))
 
-        # self.datasets = []
-        # # Partition data in stratified fashion
-        # for i in range(self.num_datasets):
-        #     num_slices_in_dataset = len(self.raw_samples) // self.num_datasets
-        #
-        #     self.datasets =
+            # self.datasets = []
+            # random.shuffle(self.raw_samples)
+            # num_slices_per_dataset = len(self.raw_samples) // self.num_datasets
+            # # Partition data in stratified fashion
+            # for j in range(self.num_datasets):
+            #     current_dataset = []
+            #     num_0_examples = 0
+            #     num_1_examples = 0
+            #     for i in reversed(range(len(self.raw_samples))):
+            #         if len(current_dataset) == num_slices_per_dataset:
+            #             self.datasets.append(current_dataset)
+            #             break  # Stop once equal number of slices in both classes.
+            #         fname, dataslice, metadata, slice_pathologies = self.raw_samples[i]
+            #         # Binary pathologies yes/no
+            #         if slice_pathologies.sum(dim=1) > 0 and num_1_examples < num_slices_per_dataset // 2:  # pathology nes
+            #             current_dataset.append(self.raw_samples.pop(i))
+            #         elif slice_pathologies.sum(dim=1) == 0 and num_0_examples < num_slices_per_dataset // 2:  # pathology no
+            #             current_dataset.append(self.raw_samples.pop(i))
+            #         else:  # Skip this sample
+            #             continue
 
     def first_dataset(self):
         # Go to first dataset

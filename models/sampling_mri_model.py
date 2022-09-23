@@ -8,7 +8,8 @@ from collections import defaultdict
 from .unet import Unet
 
 
-class ModelModule:
+class SamplingModelModule:
+    # Automatically does Type-Ia, Ib, II integration.
     def __init__(
         self,
         in_chans,
@@ -20,7 +21,6 @@ class ModelModule:
         total_lr_gamma,
         num_epochs,
         do_early_stopping=True,
-        type1=True,
     ):
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.model = PathologyClassifier(
@@ -28,7 +28,6 @@ class ModelModule:
         ).to(self.device)
 
         self.early_stopping = do_early_stopping
-        self.type1 = type1
 
         # Architecture params
         self.in_chans = in_chans
@@ -69,21 +68,14 @@ class ModelModule:
                 fname,
                 dataslice,
                 slice_pathologies,
+                label,
             ) = sample
             total_samples += image.shape[0]
 
             self.optimiser.zero_grad()
 
             image = image.unsqueeze(1).to(self.device)
-            if self.type1:
-                raise NotImplementedError()
-            else:  # Positive class = any pathology
-                target = (
-                    (slice_pathologies.sum(dim=1) > 0)
-                    .unsqueeze(1)
-                    .float()
-                    .to(self.device)
-                )
+            target = label.unsqueeze(1).float().to(self.device)
 
             logits = self.model(image)
             loss = self.bce_loss(logits, target)
@@ -121,6 +113,7 @@ class ModelModule:
                     fname,
                     dataslice,
                     slice_pathologies,
+                    label,
                 ) = sample
                 total_samples += image.shape[0]
 
@@ -130,16 +123,7 @@ class ModelModule:
                 #                 break
 
                 image = image.unsqueeze(1).to(self.device)
-                if self.type1:
-                    raise NotImplementedError()
-                else:  # Positive class = any pathology
-                    target = (
-                        (slice_pathologies.sum(dim=1) > 0)
-                        .unsqueeze(1)
-                        .float()
-                        .to(self.device)
-                    )
-                    # target = torch.stack((target, 1-target), dim=1).to(self.device)
+                target = label.unsqueeze(1).float().to(self.device)
 
                 logits = self.model(image)
 
@@ -229,14 +213,12 @@ class ModelModule:
                     fname,
                     dataslice,
                     slice_pathologies,
+                    label,
                 ) = sample
                 total_samples += image.shape[0]
                 # Preprocessing
                 image = image.unsqueeze(1).to(self.device)
-                if self.type1:
-                    raise NotImplementedError()
-                else:  # Positive class = any pathology
-                    target = (slice_pathologies.sum(dim=1) > 0).unsqueeze(1).float()
+                target = label.unsqueeze(1).float()
                 all_targets.append(target)
                 target = target.to(self.device)
                 # target = torch.stack((pathology_yes_no, 1-pathology_yes_no), dim=1).to(self.device)

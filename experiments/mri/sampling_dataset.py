@@ -80,7 +80,6 @@ class FilteredSlices:
         raw_sample_filter: Optional[Callable] = None,
         pathology_df: Optional[pd.DataFrame] = None,
         use_center_slices_only: Optional[bool] = None,
-        seed: Optional[int] = None,
         quick_test: bool = False,
     ):
         """
@@ -106,7 +105,6 @@ class FilteredSlices:
                 raw_sample should be included in the dataset.
             pathology_df: fastMRI+ pathologies dataframe.
             clean_volumes: {filename: volume clean True/False} dictionary.
-            seed: random seed for shuffling operations (also affect sample_rate operations).
             use_center_slices_only: bool, whether to use only the center half of volumes.
             quick_test: ignore 99% of data for quick test.
         """
@@ -115,9 +113,6 @@ class FilteredSlices:
             raise ValueError(
                 "either set sample_rate (sample by slices) or volume_sample_rate (sample by volumes) but not both"
             )
-
-        if seed is not None:
-            random.seed(seed)
 
         self.recons_key = "reconstruction_rss"
 
@@ -229,6 +224,7 @@ class SampledSlices:
         base_dataset,
         dataset_size: int,
         transform: Optional[Callable] = None,
+        num_partitions: int = 0,
     ):
         """
         Args:
@@ -238,19 +234,41 @@ class SampledSlices:
                 'kspace', 'target', 'attributes', 'filename', and 'slice' as
                 inputs. 'target' may be null for test data.
             dataset_size: size of dataset to sample train-test from.
+            num_partitions: number of partitions to create (if 0, no partitions, just sampling).
         """
 
         self.base_dataset = base_dataset
         self.transform = transform
         self.dataset_size = dataset_size
+        self.num_partitions = num_partitions
+        self.partition_index = 0  # Index to keep track of which partition we are on
 
+        self.datasets_dict = None  # Filled by create_experiment_splits()
+
+        if num_partitions == 0:
+            base_slices = base_dataset.raw_slices  # We will simply sample from base dataset
+        if num_partitions > 0:  # Do partitions
+            # Construct list of partitions. Each entry is a list of slices to use for that partition.
+            self.partition_slices = None
+            # Slices to use for now are determined by self.partition index.
+            base_slices = self.partition_slices[self.partition_index]
+
+        # Create data splits for experiments
+        self.create_experiment_splits(base_slices)
+
+    def next_partition(self):
+        # Increment partition_index, so that we will use a different set of slices now.
+        self.partition_index += 1
+        self.create_experiment_splits(self.partition_slices[self.partition_index])
+
+    def create_experiment_splits(self, base_slices):
         # Get stratified split of size dataset_size form base_dataset of correct size.
         # We actually want this to be different stratified data for Type-I and Type-II!
 
         # Type-II error
         # Use half the full data for type two, to correspond with type1 data size
-        data2 = self.stratify_true_label(base_dataset.raw_samples, dataset_size)
-        sampled_data_for_type2, _ = self.stratified_split_true_label(data2, dataset_size // 2)
+        data2 = self.stratify_true_label(base_slices, self.dataset_size)
+        sampled_data_for_type2, _ = self.stratified_split_true_label(data2, self.dataset_size // 2)
         # Half train, half test
         train_split2, test_split2 = self.stratified_split_true_label(
             sampled_data_for_type2, len(sampled_data_for_type2) // 2
@@ -265,7 +283,8 @@ class SampledSlices:
         # Type-I error
         # Have two options: true class 0 and true class 1 training. Do both.
         # Get data with label 0 and with label 1
-        data1 = self.stratify_true_label(base_dataset.raw_samples, dataset_size)
+        # Note that we sample from base_dataset again, because we use different data for type-I and type-II error.
+        data1 = self.stratify_true_label(base_slices, self.dataset_size)
         true0_data, true1_data = self.split_data_by_true_label(data1)  # 1a, 1b
 
         # Type-1a, use true0 data, split stratified, but with re-assigned label!
@@ -308,8 +327,6 @@ class SampledSlices:
 
         # Combined
         self.datasets_dict = {"1a": type1a_data, "1b": type1b_data, "2": type2_data}
-
-    # raw_sample._replace(slice_pathologies=n_hot_pathologies)
 
     @staticmethod
     def stratify_true_label(slices, dataset_size):

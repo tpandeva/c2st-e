@@ -22,7 +22,7 @@ from models.sampling_mri_model import SamplingModelModule
 
 """
 conda activate c2st
-python trainMRI.py --num_dataset_samples 100 --num_epochs 30 --do_early_stopping True \
+python trainMRI.py --num_dataset_samples 100 --num_partitions 0 --num_epochs 30 --do_early_stopping True \
      --dataset_sizes 200 400 1000 2000 3000 4000 5000
 """
 
@@ -42,12 +42,6 @@ def create_arg_parser():
     parser = argparse.ArgumentParser()
 
     # General params
-    parser.add_argument(
-        "--data_seed",
-        default=0,
-        type=int,
-        help="Seed for randomness in dataset creation.",
-    )
     parser.add_argument(
         "--seed",
         default=0,
@@ -98,6 +92,16 @@ def create_arg_parser():
         type=int,
         help="Number of datasets to sample and train on for each dataset size (used for computing errors).",
     )
+    parser.add_argument(
+        "--num_partitions",
+        default=1,
+        type=int,
+        help=(
+            "Number of partitions to use (0 for not partitioning). Cannot be used in combination with "
+            "num_dataset_samples (set either to 0)."
+        ),
+    )
+
     parser.add_argument("--crop_size", default=320, type=int, help="MRI image crop size (square).")
     parser.add_argument("--batch_size", default=64, type=int, help="Train batch size.")
     parser.add_argument("--num_workers", default=20, type=int, help="Number of dataloader workers.")
@@ -166,6 +170,18 @@ def c2st_prob1(y, prob1):
 
 if __name__ == "__main__":
     args = create_arg_parser().parse_args()
+    if args.num_partitions > 0:
+        if args.num_dataset_samples > 0:
+            raise ValueError("Set either `num_partitions` or num_dataset_samples` to 0.")
+        else:
+            num_samples = args.num_partitions  # set samples to number of partitions
+            num_partitions = args.num_partitions
+    else:
+        if args.num_dataset_samples == 0:
+            raise ValueError("Set either `num_partitions` or num_dataset_samples` to int > 0.")
+        else:
+            num_samples = args.num_dataset_samples
+            num_partitions = 0
 
     # Save args
     date_string = f"{datetime.now():%Y-%m-%d}"
@@ -179,9 +195,9 @@ if __name__ == "__main__":
     if args.quick_test:
         args.num_epochs = 1
         args.dataset_sizes = [100]  # Will ignored most of data in dataset creation already
-        args.num_dataset_samples = 1
-        args.data_seed = 0
+        args.num_partitions = 0
         args.seed = 0
+        num_samples = 1
 
     input_shape = (args.crop_size, args.crop_size)
 
@@ -233,13 +249,13 @@ if __name__ == "__main__":
 
     # Create initial big dataset
     # All filtered data: {False: 3618, True: 8311}, can sample up to 2x 3618 = 7236.
+    max_data = 7236
     pathology_transform = PathologyLabelTransform(crop_size=args.crop_size)
     # Just filter out stuff we really don't want to use. Then sample from this dataset.
     full_dataset = FilteredSlices(
         root=args.data_dir,
         raw_sample_filter=slice_filter,  # For populating slices with pathologies.
         pathology_df=pathology_df,  # For volume metadata and for populating slices with pathologies.
-        seed=args.data_seed,
         use_center_slices_only=True,
         quick_test=args.quick_test,
     )
@@ -253,18 +269,30 @@ if __name__ == "__main__":
     # So, 2 * 2 * 2 * 5 (20%) = 40 as divisor.
     for dataset_size in args.dataset_sizes:
         print(f"\n ----- Dataset size: {dataset_size} ----- ")
-        size_results_dict = {dataset_ind: {} for dataset_ind in range(args.num_dataset_samples)}
-
+        size_results_dict = {dataset_ind: {} for dataset_ind in range(num_samples)}
+        if isinstance(args.num_partitions, int):
+            if dataset_size * args.num_partitions > max_data:  # Max dataset size
+                raise RuntimeError(
+                    f"Cannot partition data into {args.num_partition} bits of size {dataset_size}. Only {max_data} "
+                    "points available."
+                )
         # Sample datasets of this size.
-        for dataset_ind in range(args.num_dataset_samples):
+        slice_splits = None
+        for dataset_ind in range(num_samples):
             print(f"\n  ----- Dataset index: {dataset_ind} ----- ")
             # Do this experiment a bunch of times so we can get an error estimate.
             # NOTE: Can also do partition split to treat as different experiments!
-            slice_splits = SampledSlices(
-                base_dataset=full_dataset,
-                dataset_size=dataset_size,
-                transform=pathology_transform,
-            )
+            if num_partitions > 0 and slice_splits is not None:
+                # This means we are doing partitions, and are not on the first partition index anymore.
+                # slice_splits will then contain data sampled from the next partition.
+                slice_splits.next_partition()
+            else:
+                slice_splits = SampledSlices(
+                    base_dataset=full_dataset,
+                    dataset_size=dataset_size,
+                    transform=pathology_transform,
+                    num_partitions=num_partitions,  # Whether to do partition split (0, >0), and how many.
+                )
             # Loop over Type-Ia, Ib, and II experiment settings.
             for setting, (train, val, test) in slice_splits.datasets_dict.items():
                 print(f"\n   ----- Setting: {setting} ----- ")
@@ -351,16 +379,3 @@ if __name__ == "__main__":
     # Saving results
     with open(save_dir / "results.json", "w") as f:
         json.dump({str(key): val for key, val in results_dict.items()}, f, indent=4)
-
-
-# TODO:
-#  - Setup as single big dataset: split in train-test (100 times or so), split train in train-val, all stratified.
-#  - Say big data contains 6000 points. We make type-I and type-II error splits.
-#  - Type-I: get train-test split with 1000 of 0, 1000 of 1 in train, and same in test. Train model on 0, model on 1,
-#     act like they are different classes within, of course.
-#     Then compute e-value for this setting. Do this 100 times, compute 2 type-I errors for this.
-#  - Type-II: get train-test split with 500 of 0, 500 of 1. Train model here (single e-value). Then compute Type-II
-#     error from the 100 experiments and match with type-I.
-#  - Of course, errors depend on alpha, so save e-value for each setting (dataset size: 100x type-Ia, type-Ib, type-II).
-#  - Repeat for different data sizes.
-#  - Then meta-analysis experiment?

@@ -21,9 +21,26 @@ from models.sampling_mri_model import SamplingModelModule
 
 
 """
+# Base experiment (100 samples per size)
+
 conda activate c2st
 python trainMRI.py --num_dataset_samples 100 --num_partitions 0 --num_epochs 30 --do_early_stopping True \
      --dataset_sizes 200 400 1000 2000 3000 4000 5000 --settings 1a 1b 2
+
+
+# Meta-analysis experiment (3 partitions, Type-II error). 
+# Do loop so we have multiple meta-analysis experiments to analyse for Type-II error (e.g. 100).
+# Set specific save dir for ease of combining multiple meta-analysis experiments.
+# Set `seed` to None, because otherwise we use the same data split every time we rerun the script.
+
+conda activate c2st
+for i in {1..100}
+do 
+    python trainMRI.py --num_dataset_samples 0 --num_partitions 3 --num_epochs 30 --do_early_stopping True \
+     --dataset_sizes 200 400 1000 --settings 2 --seed None \
+     --save_dir /home/timsey/Projects/c2st-e/results/mri/meta_analysis_sept26
+done
+
 """
 
 
@@ -38,6 +55,15 @@ def str2bool(v):
         raise ValueError("Boolean value expected.")
 
 
+def str2none_int(v):
+    if v is None:
+        return v
+    if v.lower() == "none":
+        return None
+    else:
+        return int(v)
+
+
 def create_arg_parser():
     parser = argparse.ArgumentParser()
 
@@ -45,8 +71,8 @@ def create_arg_parser():
     parser.add_argument(
         "--seed",
         default=0,
-        type=int,
-        help="Seed for randomness outside of dataset creation.",
+        type=str2none_int,
+        help="Seed for randomness outside of dataset creation. Set None for no seed.",
     )
     parser.add_argument(
         "--save_dir",
@@ -211,13 +237,14 @@ if __name__ == "__main__":
     input_shape = (args.crop_size, args.crop_size)
 
     # Seeds
-    random.seed(args.seed)
-    np.random.seed(args.seed)
-    torch.manual_seed(args.seed)
-    torch.cuda.manual_seed(args.seed)
-    # For reproducibility
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
+    if args.seed is not None:
+        random.seed(args.seed)
+        np.random.seed(args.seed)
+        torch.manual_seed(args.seed)
+        torch.cuda.manual_seed(args.seed)
+        # For reproducibility
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print("Device:", device)

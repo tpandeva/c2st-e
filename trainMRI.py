@@ -23,7 +23,7 @@ from models.sampling_mri_model import SamplingModelModule
 """
 conda activate c2st
 python trainMRI.py --num_dataset_samples 100 --num_partitions 0 --num_epochs 30 --do_early_stopping True \
-     --dataset_sizes 200 400 1000 2000 3000 4000 5000
+     --dataset_sizes 200 400 1000 2000 3000 4000 5000 --settings 1a 1b 2
 """
 
 
@@ -76,6 +76,13 @@ def create_arg_parser():
     )
     # Experiment params
     parser.add_argument(
+        "--settings",
+        default=["1a", "1b", "2"],
+        type=str,
+        nargs="+",
+        help="Experiment settings to use (1a, 1b are Type-I error settings, 2 is Type-II error setting).",
+    )
+    parser.add_argument(
         "--dataset_sizes",
         default=[5000],
         type=int,
@@ -122,7 +129,7 @@ def create_arg_parser():
         "--total_lr_gamma",
         default=1.0,
         type=float,
-        help="lr decay factor (exponential decay).",
+        help="lr decay factor (exponential decay): 1.0 corresponds to no lr decay.",
     )
     parser.add_argument(
         "--do_early_stopping",
@@ -170,6 +177,8 @@ def c2st_prob1(y, prob1):
 
 if __name__ == "__main__":
     args = create_arg_parser().parse_args()
+    if args.num_dataset_samples < 0 or args.num_partitions < 0:
+        raise ValueError("`num_dataset_samples` and `num_partitions` must be >= 0.")
     if args.num_partitions > 0:
         if args.num_dataset_samples > 0:
             raise ValueError("Set either `num_partitions` or num_dataset_samples` to 0.")
@@ -274,7 +283,7 @@ if __name__ == "__main__":
             if dataset_size * args.num_partitions > max_data:  # Max dataset size
                 raise RuntimeError(
                     f"Cannot partition data into {args.num_partition} bits of size {dataset_size}. Only {max_data} "
-                    "points available."
+                    f"points available."
                 )
         # Sample datasets of this size.
         slice_splits = None
@@ -295,6 +304,9 @@ if __name__ == "__main__":
                 )
             # Loop over Type-Ia, Ib, and II experiment settings.
             for setting, (train, val, test) in slice_splits.datasets_dict.items():
+                if setting not in args.settings:
+                    print(f"Skipping setting: {setting}.")
+                    continue
                 print(f"\n   ----- Setting: {setting} ----- ")
                 train_loader = torch.utils.data.DataLoader(
                     dataset=train,

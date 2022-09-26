@@ -230,9 +230,7 @@ class SampledSlices:
         Args:
             base_dataset: dataset to sample from.
             transform: Optional; A callable object that pre-processes the raw
-                data into appropriate form. The transform function should take
-                'kspace', 'target', 'attributes', 'filename', and 'slice' as
-                inputs. 'target' may be null for test data.
+                data into appropriate form.
             dataset_size: size of dataset to sample train-test from.
             num_partitions: number of partitions to create (if 0, no partitions, just sampling).
         """
@@ -246,12 +244,26 @@ class SampledSlices:
         self.datasets_dict = None  # Filled by create_experiment_splits()
 
         if num_partitions == 0:
-            base_slices = base_dataset.raw_slices  # We will simply sample from base dataset
-        if num_partitions > 0:  # Do partitions
+            base_slices = base_dataset.raw_samples  # We will simply sample from base dataset
+        else:  # Do partitions
+            print("Partitioning...")
             # Construct list of partitions. Each entry is a list of slices to use for that partition.
-            self.partition_slices = None
+            # First take from base_dataset a stratified split of data that will be split into partitions.
+            data_for_partitions = self.stratify_true_label(base_dataset.raw_samples, dataset_size * num_partitions)
+            self.partition_slices = []
+            for i in range(num_partitions):
+                # Split off some data, then split the remainder in the next loop. Continue until partitions exhausted.
+                split, data_for_partitions = self.stratified_split_true_label(data_for_partitions, dataset_size)
+                self.partition_slices.append(split)
+                if i == num_partitions - 1:
+                    assert len(data_for_partitions) == 0, "Data leftover after partitioning?!"
+
+            for i, partition in enumerate(self.partition_slices):
+                print(i, len(partition))
+
             # Slices to use for now are determined by self.partition index.
             base_slices = self.partition_slices[self.partition_index]
+            print(len(base_slices))
 
         # Create data splits for experiments
         self.create_experiment_splits(base_slices)
@@ -259,11 +271,27 @@ class SampledSlices:
     def next_partition(self):
         # Increment partition_index, so that we will use a different set of slices now.
         self.partition_index += 1
-        self.create_experiment_splits(self.partition_slices[self.partition_index])
+        print(f"Going to next partition: {self.partition_index}.")
+        base_slices = self.partition_slices[self.partition_index]
+        print(len(base_slices))
+        self.create_experiment_splits(base_slices)
 
     def create_experiment_splits(self, base_slices):
         # Get stratified split of size dataset_size form base_dataset of correct size.
         # We actually want this to be different stratified data for Type-I and Type-II!
+
+        # `self.dataset_size` is the number of datapoints sampled from the base dataset. Type-I and Type-II experiment
+        # data will be sampled from this. E.g.: if `self.dataset_size` = 1000, then we first sample 1000 points from
+        # the base dataset (stratified). Then, we construct Type-Ia data from the class 0 data, and Type-1b data from
+        # the class 1 data. Both of these sets contain 500 points, so we also sample 500 points (stratified) for
+        # Type-II data. This data is split into train-test, and 20% of the resulting train is split off into val. In
+        # this example: 200 train, 50 val, 250 test for each of the three experiment settings.
+        # More examples:
+        # 200: 40 train, 10 val, 50 test.
+        # 400: 80 train, 20 val, 100 test.
+        # 800: 160 train, 40 val, 200 test.
+        # 2000: 400 train, 100 val, 500 test.
+        # 5000: 1000 train, 250 val, 1250 test.
 
         # Type-II error
         # Use half the full data for type two, to correspond with type1 data size

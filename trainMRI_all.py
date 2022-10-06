@@ -8,6 +8,7 @@ import torch.fft
 from pathlib import Path
 from functools import partial
 from torch.distributions import Normal
+from tests import mmd2_permutations
 import argparse
 
 from experiments.mri.fastmri_plus import get_pathology_info
@@ -18,6 +19,7 @@ from experiments.mri.sampling_dataset import (
     PathologyLabelTransform,
 )
 from models.sampling_mri_model import SamplingModelModule
+from models.sampling_mri_model_mmd import SamplingModelModuleMMD
 
 
 """
@@ -201,6 +203,46 @@ def c2st_prob1(y, prob1):
     return pval
 
 
+# def c2st_permutation(y, prob1, N_per):
+#     # H0: accuracy=0.5 vs H1: accuracy>0.5
+#     y_hat = (prob1 > 0.5).long()
+#     matches = y == y_hat
+#     accuracy = torch.sum(matches) / y.shape[0]
+#     n_te = y.shape[0]
+#     STAT_vector = np.zeros(N_per)
+#     for r in range(N_per):
+#         ind = np.random.choice(n_te, n_te, replace=False)
+#         STAT_vector[r] = torch.sum(y[ind] == y_hat) / y.shape[0]
+#     S_vector = np.sort(STAT_vector)
+#     p_val = np.mean(accuracy.item() < S_vector)
+#     return p_val
+
+
+def test_le(x, y, N_per, alpha=0.05):
+    N = x.shape[0]
+    # f = torch.nn.Softmax()
+    f = torch.sigmoid
+    x = f(x)
+    N1 = y.sum().int()
+    # STAT = abs((x[y == 1, 0]).type(torch.FloatTensor).mean() - (x[y == 0, 0]).type(torch.FloatTensor).mean())
+    STAT = abs((x[y == 1]).type(torch.FloatTensor).mean() - (x[y == 0]).type(torch.FloatTensor).mean())
+
+    STAT_vector = np.zeros(N_per)
+    for r in range(N_per):
+        ind = np.random.choice(N, N, replace=False)
+        ind_X = ind[:N1]
+        ind_Y = ind[N1:]
+        # STAT_vector[r] = abs(x[ind_X, 0].type(torch.FloatTensor).mean() - x[ind_Y, 0].type(torch.FloatTensor).mean())
+        STAT_vector[r] = abs(x[ind_X].type(torch.FloatTensor).mean() - x[ind_Y].type(torch.FloatTensor).mean())
+    S_vector = np.sort(STAT_vector)
+    p_val = np.mean(STAT.item() < S_vector)
+    threshold = S_vector[int(np.ceil(N_per * (1 - alpha)))]
+    h = 0
+    if STAT.item() > threshold:
+        h = 1
+    return h, threshold, STAT, p_val
+
+
 if __name__ == "__main__":
     args = create_arg_parser().parse_args()
     if args.num_dataset_samples < 0 or args.num_partitions < 0:
@@ -229,7 +271,7 @@ if __name__ == "__main__":
 
     if args.quick_test:
         args.num_epochs = 1
-        args.dataset_sizes = [100]  # Will ignored most of data in dataset creation already
+        args.dataset_sizes = [100]
         args.num_partitions = 0
         args.seed = 0
         num_samples = 1
@@ -360,8 +402,32 @@ if __name__ == "__main__":
                 # --------------------------------------
                 # ------ Model, training, testing ------
                 # --------------------------------------
+                # print(f"\n Starting C2ST training...")
+                # module = SamplingModelModule(
+                #     args.in_chans,
+                #     args.chans,
+                #     args.num_pool_layers,
+                #     args.drop_prob,
+                #     input_shape,
+                #     args.lr,
+                #     args.total_lr_gamma,
+                #     args.num_epochs,
+                #     args.do_early_stopping,
+                # )
+                #
+                # (
+                #     train_losses,
+                #     val_losses,
+                #     val_accs,
+                #     extra_output,
+                #     total_time,
+                # ) = module.train(train_loader, val_loader, print_every=1, eval_every=1)
+                # print(f" Total time: {total_time:.2f}s")
+                # test_loss, test_acc, test_extra_output = module.test(test_loader)
 
-                module = SamplingModelModule(
+                print(f"\n Starting MMD training...")
+                # MMD classifier training and testing
+                module = SamplingModelModuleMMD(
                     args.in_chans,
                     args.chans,
                     args.num_pool_layers,
@@ -374,18 +440,12 @@ if __name__ == "__main__":
                 )
 
                 (
-                    train_losses,
-                    val_losses,
-                    val_accs,
-                    extra_output,
-                    total_time,
+                    train_losses_mmd,
+                    extra_output_mmd,
+                    total_time_mmd,
                 ) = module.train(train_loader, val_loader, print_every=1, eval_every=1)
-                print(f"Total time: {total_time:.2f}s")
-
-                # val_loss_x = [key for key in sorted(val_losses.keys(), key=lambda x: int(x))]
-                # val_loss_y = [val_losses[key] for key in val_loss_x]
-                # val_acc_y = [val_accs[key] for key in val_loss_x]
-                test_loss, test_acc, test_extra_output = module.test(test_loader)
+                print(f" Total time: {total_time_mmd:.2f}s")
+                test_loss_mmd, Kxyxy, mmd_size, test_extra_output_mmd = module.test(test_loader)
 
                 # --------------------------
                 # ------ Sample tests ------
@@ -402,12 +462,19 @@ if __name__ == "__main__":
                 print(f" 1 / E-value: {1 / e_val:.4f} (actual: {1 / e_val})")
                 p_val_c2st = c2st_prob1(targets, test_prob1)
                 print(f"     p-value: {p_val_c2st:.4f} (actual: {p_val_c2st})")
+                _, _, _, p_val_l = test_le(test_logit1, targets, 100)
+                print(f"     p-value (L): {p_val_l:.4f} (actual: {p_val_l})")
+                _, p_val_mmd, _ = mmd2_permutations(Kxyxy, mmd_size, permutations=200)
+                print(f"     p-value (MMD): {p_val_mmd:.4f} (actual: {p_val_mmd})")
 
                 size_results_dict[dataset_ind][setting] = {
                     "e_val": e_val,
                     "p_val": p_val_c2st,
+                    "p_val_l": p_val_l,
+                    "p_val_mmd": p_val_mmd,
                     "test_loss": test_loss,
                     "test_acc": test_acc,
+                    "test_loss_mmd": test_loss_mmd,
                 }
 
         results_dict[dataset_size] = size_results_dict

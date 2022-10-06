@@ -402,32 +402,8 @@ if __name__ == "__main__":
                 # --------------------------------------
                 # ------ Model, training, testing ------
                 # --------------------------------------
-                # print(f"\n Starting C2ST training...")
-                # module = SamplingModelModule(
-                #     args.in_chans,
-                #     args.chans,
-                #     args.num_pool_layers,
-                #     args.drop_prob,
-                #     input_shape,
-                #     args.lr,
-                #     args.total_lr_gamma,
-                #     args.num_epochs,
-                #     args.do_early_stopping,
-                # )
-                #
-                # (
-                #     train_losses,
-                #     val_losses,
-                #     val_accs,
-                #     extra_output,
-                #     total_time,
-                # ) = module.train(train_loader, val_loader, print_every=1, eval_every=1)
-                # print(f" Total time: {total_time:.2f}s")
-                # test_loss, test_acc, test_extra_output = module.test(test_loader)
-
-                print(f"\n Starting MMD training...")
-                # MMD classifier training and testing
-                module = SamplingModelModuleMMD(
+                print(f"\n Starting C2ST-E/P/L training...")
+                module = SamplingModelModule(
                     args.in_chans,
                     args.chans,
                     args.num_pool_layers,
@@ -440,7 +416,33 @@ if __name__ == "__main__":
                 )
 
                 (
+                    train_losses,
+                    val_losses,
+                    val_accs,
+                    extra_output,
+                    total_time,
+                ) = module.train(train_loader, val_loader, print_every=1, eval_every=1)
+                print(f" Total time: {total_time:.2f}s")
+                test_loss, test_acc, test_extra_output = module.test(test_loader)
+
+                print(f"\n Starting MMD training...")
+                # MMD classifier training and testing
+                module = SamplingModelModuleMMD(
+                    args.in_chans,
+                    args.chans,
+                    args.num_pool_layers,
+                    args.drop_prob,
+                    input_shape,
+                    args.lr,
+                    args.total_lr_gamma,
+                    args.num_epochs,
+                    save_dir,
+                    args.do_early_stopping,
+                )
+
+                (
                     train_losses_mmd,
+                    val_losses_mmd,
                     extra_output_mmd,
                     total_time_mmd,
                 ) = module.train(train_loader, val_loader, print_every=1, eval_every=1)

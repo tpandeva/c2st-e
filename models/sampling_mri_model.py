@@ -175,7 +175,7 @@ class SamplingModelModule:
 
             train_loss, train_extra_output = self.train_epoch(train_loader)
             print(f" Train loss: {train_loss:.3f}, time: {train_extra_output['train_epoch_time']:.2f}s")
-            train_losses.append(np.mean(train_loss))
+            train_losses.append(train_loss)
             extra_output[epoch]["train"] = train_extra_output
 
         val_loss, val_acc, val_extra_output = self.val_epoch(val_loader)

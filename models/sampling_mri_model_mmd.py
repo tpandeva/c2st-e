@@ -1,4 +1,5 @@
 import time
+import pickle
 import numpy as np
 import torch
 from torch import nn
@@ -23,11 +24,15 @@ class SamplingModelModuleMMD:
         lr,
         total_lr_gamma,
         num_epochs,
+        save_dir,
         do_early_stopping=True,
         patience=3,
     ):
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.model = PathologyClassifierMMD(in_chans, chans, num_pool_layers, drop_prob, input_shape).to(self.device)
+
+        self.embedding_save_dir = save_dir / "embeddings"
+        self.embedding_save_dir.mkdir(parents=True, exist_ok=False)
 
         self.early_stopping = do_early_stopping
         self.patience = patience
@@ -51,11 +56,8 @@ class SamplingModelModuleMMD:
 
     def train_epoch(self, loader):
         start_time = time.perf_counter()
-
         self.model.train()
-
         extra_output = {}
-
         # Run loader to get all positive and negative examples
         all_inputs_neg, all_inputs_pos = [], []
         for i, sample in enumerate(loader):
@@ -77,16 +79,31 @@ class SamplingModelModuleMMD:
         neg_tensor = torch.cat(all_inputs_neg, dim=0).unsqueeze(1).to(self.device)
         pos_tensor = torch.cat(all_inputs_pos, dim=0).unsqueeze(1).to(self.device)
 
-        # Full batch epoch
-        mmd2, varEst, Kxyxy = self.model(neg_tensor, pos_tensor)
-        mmd_value_temp = -1 * mmd2
-        mmd_std_temp = torch.sqrt(varEst + 10 ** (-8))
-        epoch_loss = torch.div(mmd_value_temp, mmd_std_temp)
+        # Kxyxy depends on sample size, but it is only used for the final statistical test, so we can do batch training.
+        # batch_size = loader.batch_size
+        full_size = neg_tensor.shape[0] + pos_tensor.shape[0]
+        batch_size = loader.batch_size
+        assert batch_size % 2 == 0, "Must use even size batches."
+        num_batches = (
+            full_size // batch_size
+            if full_size % batch_size == 0
+            else full_size // batch_size + 1
+        )
+        epoch_loss = 0
+        for k in range(num_batches):
+            # Half of each
+            neg = neg_tensor[k * batch_size // 2: (k + 1) * batch_size // 2]
+            pos = pos_tensor[k * batch_size // 2: (k + 1) * batch_size // 2]
+            mmd2, varEst, Kxyxy = self.model(neg, pos)
+            mmd_value_temp = -1 * mmd2
+            mmd_std_temp = torch.sqrt(varEst + 10 ** (-8))
+            loss = torch.div(mmd_value_temp, mmd_std_temp)
+            self.optimiser.zero_grad()
+            loss.backward()
+            self.optimiser.step()
+            epoch_loss += loss.detach() * neg.shape[0] * 2
 
-        self.optimiser.zero_grad()
-        epoch_loss.backward()
-        self.optimiser.step()
-
+        epoch_loss /= full_size
         self.scheduler.step()
 
         extra_output["train_epoch_time"] = time.perf_counter() - start_time
@@ -94,9 +111,7 @@ class SamplingModelModuleMMD:
 
     def val_epoch(self, loader):
         start_time = time.perf_counter()
-
         self.model.eval()
-
         with torch.no_grad():
             extra_output = {}
             # Run loader to get all positive and negative examples
@@ -120,11 +135,26 @@ class SamplingModelModuleMMD:
             neg_tensor = torch.cat(all_inputs_neg, dim=0).unsqueeze(1).to(self.device)
             pos_tensor = torch.cat(all_inputs_pos, dim=0).unsqueeze(1).to(self.device)
 
-            # Full batch epoch
-            mmd2, varEst, Kxyxy = self.model(neg_tensor, pos_tensor)
-            mmd_value_temp = -1 * mmd2
-            mmd_std_temp = torch.sqrt(varEst + 10 ** (-8))
-            epoch_loss = torch.div(mmd_value_temp, mmd_std_temp)
+            # Kxyxy depends on sample size, but it is only used for the final statistical test, so we can
+            # do batch validation.
+            full_size = neg_tensor.shape[0] + pos_tensor.shape[0]
+            batch_size = loader.batch_size
+            assert batch_size % 2 == 0, "Must use even size batches."
+            num_batches = (
+                full_size // batch_size
+                if full_size % batch_size == 0
+                else full_size // batch_size + 1
+            )
+            epoch_loss = 0
+            for k in range(num_batches):
+                # Half of each
+                neg = neg_tensor[k * batch_size // 2: (k + 1) * batch_size // 2]
+                pos = pos_tensor[k * batch_size // 2: (k + 1) * batch_size // 2]
+                mmd2, varEst, Kxyxy = self.model(neg, pos)
+                mmd_value_temp = -1 * mmd2
+                mmd_std_temp = torch.sqrt(varEst + 10 ** (-8))
+                epoch_loss += torch.div(mmd_value_temp, mmd_std_temp) * neg.shape[0] * 2
+            epoch_loss /= full_size
 
         extra_output["val_epoch_time"] = time.perf_counter() - start_time
         return epoch_loss, extra_output
@@ -162,7 +192,7 @@ class SamplingModelModuleMMD:
 
             train_loss, train_extra_output = self.train_epoch(train_loader)
             print(f" Train loss: {train_loss:.3f}, time: {train_extra_output['train_epoch_time']:.2f}s")
-            train_losses.append(np.mean(train_loss))
+            train_losses.append(train_loss)
             extra_output[epoch]["train"] = train_extra_output
 
         val_loss, val_extra_output = self.val_epoch(val_loader)
@@ -180,9 +210,7 @@ class SamplingModelModuleMMD:
     def test(self, loader):
         start_time = time.perf_counter()
         extra_output = {}
-
         self.model.eval()
-        self.bce_loss.eval()
         with torch.no_grad():
             all_inputs_neg, all_inputs_pos = [], []
             for i, sample in enumerate(loader):
@@ -203,8 +231,48 @@ class SamplingModelModuleMMD:
             neg_tensor = torch.cat(all_inputs_neg, dim=0).unsqueeze(1).to(self.device)
             pos_tensor = torch.cat(all_inputs_pos, dim=0).unsqueeze(1).to(self.device)
 
-            # Full batch epoch
-            mmd2, varEst, Kxyxy = self.model(neg_tensor, pos_tensor)
+            # Cannot run all slices through the model at the same time, so do neg first and pos next, save to disk
+            #  in between. Then load and run through MMDu (see forward). This is necessary because Kxyxy depends on
+            #  sample size.
+            ordered_tensor = torch.cat((neg_tensor, pos_tensor), dim=0)
+            batch_size = loader.batch_size
+            num_batches = (
+                ordered_tensor.shape[0] // batch_size
+                if ordered_tensor.shape[0] % batch_size == 0
+                else ordered_tensor.shape[0] // batch_size + 1
+            )
+            print(self.embedding_save_dir)
+            for k in range(num_batches):
+                batch = ordered_tensor[k * batch_size: (k + 1) * batch_size]
+                batch_xy = batch
+                batch_xy_hat = self.model.linear(
+                    torch.flatten(self.model.unet.encoder(batch_xy)[0], start_dim=1)
+                )
+                emb_filename = f"{k}_batch.pkl"
+                with open(self.embedding_save_dir / emb_filename, "wb") as f:
+                    pickle.dump(batch_xy_hat, f)
+
+            x, y = neg_tensor, pos_tensor
+            # Load embeddings in correct order (so that they match x and y)
+            # TODO: Check
+            xy_hat = []
+            for emb_file in sorted(self.embedding_save_dir.iterdir(), key=lambda x: int(x.name.split("_")[0])):
+                print(emb_file.name, int(emb_file.name.split("_")[0]))
+                with open(emb_file, "rb") as f:
+                    emb = pickle.load(f)
+                    xy_hat.append(emb)
+            xy_hat = torch.cat(xy_hat, dim=0)
+
+            mmd2, varEst, Kxyxy = MMDu(
+                xy_hat[0: x.shape[0], :],
+                xy_hat[x.shape[0]:, :],
+                x.view(x.shape[0], -1),
+                y.view(y.shape[0], -1),
+                self.model.sigma ** 2,
+                self.model.sigma0_u ** 2,
+                torch.exp(self.model.eps) / (1 + torch.exp(self.model.eps)),
+            )
+
             mmd_value_temp = -1 * mmd2
             mmd_std_temp = torch.sqrt(varEst + 10 ** (-8))
             test_loss = torch.div(mmd_value_temp, mmd_std_temp)
@@ -216,7 +284,7 @@ class SamplingModelModuleMMD:
         extra_output["test_time"] = test_time
 
         print(f" Test loss: {test_loss:.3f}, time: {test_time:.2f}s")
-        return test_loss, Kxyxy, mmd_size, extra_output
+        return test_loss.item(), Kxyxy, mmd_size, extra_output
 
 
 class LinearModel(nn.Module):
@@ -239,14 +307,14 @@ class LinearModel(nn.Module):
 
 
 class PathologyClassifierMMD(nn.Module):
-    def __init__(self, in_chans, chans, num_pool_layers, drop_prob, input_shape, enc_size=100):
+    def __init__(self, in_chans, chans, num_pool_layers, drop_prob, input_shape, mmd_enc_size=100):
         super().__init__()
 
         assert input_shape[0] == input_shape[1], "`enc_size` computation assumes square images (potentially)."
         up_factor = chans * 2 ** num_pool_layers
         down_factor = 4 ** num_pool_layers
         self.enc_size = input_shape[0] * input_shape[1] * up_factor // down_factor
-        self.mmd_enc_size = enc_size
+        self.mmd_enc_size = mmd_enc_size
 
         self.unet = Unet(
             in_chans=in_chans,
@@ -272,12 +340,15 @@ class PathologyClassifierMMD(nn.Module):
 
     def forward(self, x, y):
         xy = torch.cat((x, y))
-        xy_hat = self.linear(self.unet.encoder(xy)[0])
+        xy_hat = self.linear(
+            torch.flatten(self.unet.encoder(xy)[0], start_dim=1)
+        )
+        # TODO: For test, I need to run this full batch because Kxyxy depends on sample size
         mmd2, varEst, Kxyxy = MMDu(
             xy_hat[0 : x.shape[0], :],
             xy_hat[x.shape[0] :, :],
-            x,
-            y,
+            x.view(x.shape[0], -1),
+            y.view(y.shape[0], -1),
             self.sigma ** 2,
             self.sigma0_u ** 2,
             torch.exp(self.eps) / (1 + torch.exp(self.eps)),

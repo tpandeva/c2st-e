@@ -106,8 +106,8 @@ def mmd2_permutations(K, n_X, permutations=500):
         # need to subtract \sum_i k(X_i, X_i) + k(Y_i, Y_i) + 2 k(X_i, Y_i)
         # first two are just trace, but last is harder:
         is_X = ws > 0
-        X_inds = is_X.nonzero()[:, 1].view(permutations + 1, n_X)
-        Y_inds = (~is_X).nonzero()[:, 1].view(permutations + 1, n_Y)
+        X_inds = is_X.nonzero(as_tuple=False)[:, 1].view(permutations + 1, n_X)
+        Y_inds = (~is_X).nonzero(as_tuple=False)[:, 1].view(permutations + 1, n_Y)
         del is_X, ws
         cross_terms = K.take(Y_inds * n + X_inds).sum(1)
         del X_inds, Y_inds

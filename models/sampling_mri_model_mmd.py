@@ -254,7 +254,6 @@ class SamplingModelModuleMMD:
 
             x, y = neg_tensor, pos_tensor
             # Load embeddings in correct order (so that they match x and y)
-            # TODO: Check
             xy_hat = []
             for emb_file in sorted(self.embedding_save_dir.iterdir(), key=lambda x: int(x.name.split("_")[0])):
                 print(emb_file.name, int(emb_file.name.split("_")[0]))
@@ -352,7 +351,6 @@ class PathologyClassifierMMD(nn.Module):
         xy_hat = self.linear(
             torch.flatten(self.unet.encoder(xy)[0], start_dim=1)
         )
-        # TODO: For test, I need to run this full batch because Kxyxy depends on sample size
         mmd2, varEst, Kxyxy = MMDu(
             xy_hat[0 : x.shape[0], :],
             xy_hat[x.shape[0] :, :],

@@ -30,8 +30,9 @@ python trainMRI.py --num_dataset_samples 100 --num_partitions 0 --num_epochs 30 
      --dataset_sizes 200 400 1000 2000 3000 4000 5000 --settings 1a 1b 2
 
 
-# Meta-analysis experiment (3 partitions, Type-II error). 
-# Do loop so we have multiple meta-analysis experiments to analyse for Type-II error (e.g. 100).
+# Meta-analysis experiment (3 partitions). 
+# We overload the num_dataset_samples loop to do partitions instead: set to 0 to activate partition behaviour.
+# Do outer loop so we have multiple meta-analysis experiments to analyse for Type-I/II error (e.g. 100).
 # Set specific save dir for ease of combining multiple meta-analysis experiments.
 # Set `seed` to None, because otherwise we use the same data split every time we rerun the script.
 
@@ -39,7 +40,7 @@ conda activate c2st
 for i in {1..100}
 do 
     python trainMRI.py --num_dataset_samples 0 --num_partitions 3 --num_epochs 30 --do_early_stopping True \
-     --dataset_sizes 200 400 1000 --settings 1a 1b --seed None \
+     --dataset_sizes 200 400 1000 --settings 1a 1b 2 --seed None \
      --save_dir /home/timsey/Projects/c2st-e/results/mri/meta_analysis_sept27
 done
 
@@ -402,32 +403,8 @@ if __name__ == "__main__":
                 # --------------------------------------
                 # ------ Model, training, testing ------
                 # --------------------------------------
-                # print(f"\n Starting C2ST-E/P/L training...")
-                # module = SamplingModelModule(
-                #     args.in_chans,
-                #     args.chans,
-                #     args.num_pool_layers,
-                #     args.drop_prob,
-                #     input_shape,
-                #     args.lr,
-                #     args.total_lr_gamma,
-                #     args.num_epochs,
-                #     args.do_early_stopping,
-                # )
-                #
-                # (
-                #     train_losses,
-                #     val_losses,
-                #     val_accs,
-                #     extra_output,
-                #     total_time,
-                # ) = module.train(train_loader, val_loader, print_every=1, eval_every=1)
-                # print(f" Total time: {total_time:.2f}s")
-                # test_loss, test_acc, test_extra_output = module.test(test_loader)
-
-                print(f"\n Starting MMD training...")
-                # MMD classifier training and testing
-                module = SamplingModelModuleMMD(
+                print(f"\n Starting C2ST-E/P/L training...")
+                module = SamplingModelModule(
                     args.in_chans,
                     args.chans,
                     args.num_pool_layers,
@@ -436,18 +413,42 @@ if __name__ == "__main__":
                     args.lr,
                     args.total_lr_gamma,
                     args.num_epochs,
-                    save_dir / str(dataset_size) / str(dataset_ind) / str(setting),  # For logit saving
                     args.do_early_stopping,
                 )
 
                 (
-                    train_losses_mmd,
-                    val_losses_mmd,
-                    extra_output_mmd,
-                    total_time_mmd,
+                    train_losses,
+                    val_losses,
+                    val_accs,
+                    extra_output,
+                    total_time,
                 ) = module.train(train_loader, val_loader, print_every=1, eval_every=1)
-                print(f" Total time: {total_time_mmd:.2f}s")
-                test_loss_mmd, Kxyxy, mmd_size, test_extra_output_mmd = module.test(test_loader)
+                print(f" Total time: {total_time:.2f}s")
+                test_loss, test_acc, test_extra_output = module.test(test_loader)
+
+                # print(f"\n Starting MMD training...")
+                # # MMD classifier training and testing
+                # module = SamplingModelModuleMMD(
+                #     args.in_chans,
+                #     args.chans,
+                #     args.num_pool_layers,
+                #     args.drop_prob,
+                #     input_shape,
+                #     args.lr,
+                #     args.total_lr_gamma,
+                #     args.num_epochs,
+                #     save_dir / str(dataset_size) / str(dataset_ind) / str(setting),  # For logit saving
+                #     args.do_early_stopping,
+                # )
+                #
+                # (
+                #     train_losses_mmd,
+                #     val_losses_mmd,
+                #     extra_output_mmd,
+                #     total_time_mmd,
+                # ) = module.train(train_loader, val_loader, print_every=1, eval_every=1)
+                # print(f" Total time: {total_time_mmd:.2f}s")
+                # test_loss_mmd, Kxyxy, mmd_size, test_extra_output_mmd = module.test(test_loader)
 
                 # --------------------------
                 # ------ Sample tests ------
@@ -466,17 +467,17 @@ if __name__ == "__main__":
                 print(f"     p-value: {p_val_c2st:.4f} (actual: {p_val_c2st})")
                 _, _, _, p_val_l = test_le(test_logit1, targets, 100)
                 print(f"     p-value (L): {p_val_l:.4f} (actual: {p_val_l})")
-                _, p_val_mmd, _ = mmd2_permutations(Kxyxy, mmd_size, permutations=200)
-                print(f"     p-value (MMD): {p_val_mmd:.4f} (actual: {p_val_mmd})")
+                # _, p_val_mmd, _ = mmd2_permutations(Kxyxy, mmd_size, permutations=200)
+                # print(f"     p-value (MMD): {p_val_mmd:.4f} (actual: {p_val_mmd})")
 
                 size_results_dict[dataset_ind][setting] = {
                     "e_val": e_val,
                     "p_val": p_val_c2st,
                     "p_val_l": p_val_l,
-                    "p_val_mmd": p_val_mmd,
+                    # "p_val_mmd": p_val_mmd,
                     "test_loss": test_loss,
                     "test_acc": test_acc,
-                    "test_loss_mmd": test_loss_mmd,
+                    # "test_loss_mmd": test_loss_mmd,
                 }
 
         results_dict[dataset_size] = size_results_dict

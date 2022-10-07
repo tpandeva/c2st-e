@@ -259,11 +259,10 @@ class SampledSlices:
                     assert len(data_for_partitions) == 0, "Data leftover after partitioning?!"
 
             for i, partition in enumerate(self.partition_slices):
-                print(i, len(partition))
+                print(f"Partition {i} of size: {len(partition)}.")
 
             # Slices to use for now are determined by self.partition index.
             base_slices = self.partition_slices[self.partition_index]
-            print(len(base_slices))
 
         # Create data splits for experiments
         self.create_experiment_splits(base_slices)
@@ -273,7 +272,6 @@ class SampledSlices:
         self.partition_index += 1
         print(f"Going to next partition: {self.partition_index}.")
         base_slices = self.partition_slices[self.partition_index]
-        print(len(base_slices))
         self.create_experiment_splits(base_slices)
 
     def create_experiment_splits(self, base_slices):

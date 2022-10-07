@@ -24,10 +24,12 @@ from models.sampling_mri_model_mmd import SamplingModelModuleMMD
 
 """
 # Base experiment (100 samples per size)
+# Save dir not necessary, but useful to find this back later.
 
 conda activate c2st
 python trainMRI.py --num_dataset_samples 100 --num_partitions 0 --num_epochs 30 --do_early_stopping True \
-     --dataset_sizes 200 400 1000 2000 3000 4000 5000 --settings 1a 1b 2
+     --dataset_sizes 200 400 1000 2000 3000 4000 5000 --settings 1a 1b 2 --seed None \
+     --save_dir /home/timsey/Projects/c2st-e/results/mri/base_exp_oct7
 
 
 # Meta-analysis experiment (3 partitions). 
@@ -40,10 +42,25 @@ conda activate c2st
 for i in {1..100}
 do 
     python trainMRI.py --num_dataset_samples 0 --num_partitions 3 --num_epochs 30 --do_early_stopping True \
-     --dataset_sizes 200 400 1000 --settings 1a 1b 2 --seed None \
-     --save_dir /home/timsey/Projects/c2st-e/results/mri/meta_analysis_sept27
+     --dataset_sizes 200 400 1000 2000 --settings 1a 1b 2 --seed None \
+     --save_dir /home/timsey/Projects/c2st-e/results/mri/meta_analysis_oct7
 done
 
+
+
+# Combined:
+
+conda activate c2st
+python trainMRI.py --num_dataset_samples 100 --num_partitions 0 --num_epochs 30 --do_early_stopping True \
+     --dataset_sizes 200 400 1000 2000 3000 4000 5000 --settings 1a 1b 2 --seed None \
+     --save_dir /home/timsey/Projects/c2st-e/results/mri/base_exp_oct7
+     
+for i in {1..100}
+do 
+    python trainMRI.py --num_dataset_samples 0 --num_partitions 3 --num_epochs 30 --do_early_stopping True \
+     --dataset_sizes 200 400 1000 2000 --settings 1a 1b 2 --seed None \
+     --save_dir /home/timsey/Projects/c2st-e/results/mri/meta_analysis_oct7
+done
 """
 
 
@@ -75,7 +92,10 @@ def create_arg_parser():
         "--seed",
         default=0,
         type=str2none_int,
-        help="Seed for randomness outside of dataset creation. Set None for no seed.",
+        help=(
+            "Seed, use ONLY for debugging. Set to `None` for actual experiments (influences data sampling "
+            "in potentially problematic ways, especially for meta-learning experiments)."
+        ),
     )
     parser.add_argument(
         "--save_dir",

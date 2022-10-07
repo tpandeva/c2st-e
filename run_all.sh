@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-conda activate c2st
+source /home/timsey/anaconda3/bin/activate c2st
 
 # Base experiments
 python trainMRI.py --num_dataset_samples 100 --num_partitions 0 --num_epochs 30 --do_early_stopping True \

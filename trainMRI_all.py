@@ -271,7 +271,7 @@ if __name__ == "__main__":
 
     if args.quick_test:
         args.num_epochs = 1
-        args.dataset_sizes = [100]
+        args.dataset_sizes = [200]
         args.num_partitions = 0
         args.seed = 0
         num_samples = 1
@@ -402,28 +402,28 @@ if __name__ == "__main__":
                 # --------------------------------------
                 # ------ Model, training, testing ------
                 # --------------------------------------
-                print(f"\n Starting C2ST-E/P/L training...")
-                module = SamplingModelModule(
-                    args.in_chans,
-                    args.chans,
-                    args.num_pool_layers,
-                    args.drop_prob,
-                    input_shape,
-                    args.lr,
-                    args.total_lr_gamma,
-                    args.num_epochs,
-                    args.do_early_stopping,
-                )
-
-                (
-                    train_losses,
-                    val_losses,
-                    val_accs,
-                    extra_output,
-                    total_time,
-                ) = module.train(train_loader, val_loader, print_every=1, eval_every=1)
-                print(f" Total time: {total_time:.2f}s")
-                test_loss, test_acc, test_extra_output = module.test(test_loader)
+                # print(f"\n Starting C2ST-E/P/L training...")
+                # module = SamplingModelModule(
+                #     args.in_chans,
+                #     args.chans,
+                #     args.num_pool_layers,
+                #     args.drop_prob,
+                #     input_shape,
+                #     args.lr,
+                #     args.total_lr_gamma,
+                #     args.num_epochs,
+                #     args.do_early_stopping,
+                # )
+                #
+                # (
+                #     train_losses,
+                #     val_losses,
+                #     val_accs,
+                #     extra_output,
+                #     total_time,
+                # ) = module.train(train_loader, val_loader, print_every=1, eval_every=1)
+                # print(f" Total time: {total_time:.2f}s")
+                # test_loss, test_acc, test_extra_output = module.test(test_loader)
 
                 print(f"\n Starting MMD training...")
                 # MMD classifier training and testing
@@ -436,7 +436,7 @@ if __name__ == "__main__":
                     args.lr,
                     args.total_lr_gamma,
                     args.num_epochs,
-                    save_dir,
+                    save_dir / str(dataset_size) / str(dataset_ind) / str(setting),  # For logit saving
                     args.do_early_stopping,
                 )
 

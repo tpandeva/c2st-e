@@ -326,10 +326,19 @@ class PathologyClassifierMMD(nn.Module):
         self.linear = nn.Linear(self.enc_size, self.mmd_enc_size)
 
         # MMD params
+        # self.eps, self.sigma, self.sigma0_u = (
+        #     torch.nn.Parameter(torch.from_numpy(np.random.rand(1) * (10 ** (-10))), requires_grad=True),
+        #     torch.nn.Parameter(torch.from_numpy(np.sqrt(np.random.rand(1) * 0.3)), requires_grad=True),
+        #     torch.nn.Parameter(torch.from_numpy(np.sqrt(np.random.rand(1) * 0.002)), requires_grad=True),
+        # )
+
         self.eps, self.sigma, self.sigma0_u = (
-            torch.nn.Parameter(torch.from_numpy(np.random.rand(1) * (10 ** (-10))), requires_grad=True),
-            torch.nn.Parameter(torch.from_numpy(np.sqrt(np.random.rand(1) * 0.3)), requires_grad=True),
-            torch.nn.Parameter(torch.from_numpy(np.sqrt(np.random.rand(1) * 0.002)), requires_grad=True),
+            torch.nn.Parameter(
+                torch.log(torch.from_numpy(np.random.rand(1) * (10 ** (-10)))),
+                requires_grad=True,
+            ),
+            torch.nn.Parameter(torch.from_numpy(np.ones(1) * np.sqrt(2 * 32 * 32)), requires_grad=True),
+            torch.nn.Parameter(torch.from_numpy(np.sqrt(np.ones(1) * 0.005)), requires_grad=True),
         )
 
     # def forward(self, image):

@@ -132,7 +132,7 @@ class FilteredSlices:
         files = list(Path(root).iterdir())
         if quick_test:
             random.shuffle(files)
-            files = files[: int(len(files) * 0.03)]
+            files = files[: int(len(files) * 0.05)]
         for fname in sorted(files):
             metadata, num_slices = self._retrieve_metadata(fname)
             total_slices += num_slices
@@ -306,7 +306,7 @@ class SampledSlices:
         train = SliceDataset(train_split2, self.transform)
         val = SliceDataset(val_split2, self.transform)
         test = SliceDataset(test_split2, self.transform)
-        type2_data = {train, val, test}
+        type2_data = (train, val, test)
 
         # Type-I error
         # Have two options: true class 0 and true class 1 training. Do both.
@@ -322,7 +322,7 @@ class SampledSlices:
         train = SliceDataset(train_split1a, self.transform)
         val = SliceDataset(val_split1a, self.transform)
         test = SliceDataset(test_split1a, self.transform)
-        type1a_data = {train, val, test}
+        type1a_data = (train, val, test)
 
         # Type-1b
         train_split1b, test_split1b = self.stratified_split_false_labels(true1_data, True)
@@ -331,27 +331,27 @@ class SampledSlices:
         train = SliceDataset(train_split1b, self.transform)
         val = SliceDataset(val_split1b, self.transform)
         test = SliceDataset(test_split1b, self.transform)
-        type1b_data = {train, val, test}
+        type1b_data = (train, val, test)
 
         print("type1_sample_full", self.get_label_counts(data1))
         print("type2_sample_full", self.get_label_counts(data2))
-        # print("\n")
-        # print("type1a_true0", self.get_label_counts(true0_data))
-        # print("type1b_true1", self.get_label_counts(true1_data))
-        # print("type2_sampled", self.get_label_counts(sampled_data_for_type2))
-        # print("\n")
-        # print("type1a_train", self.get_label_counts(train_split1a))
-        # print("type1a_val", self.get_label_counts(val_split1a))
-        # print("type1a_test", self.get_label_counts(test_split1a))
-        # print("\n")
-        # print("type1b_train", self.get_label_counts(train_split1b))
-        # print("type1b_val", self.get_label_counts(val_split1b))
-        # print("type1b_test", self.get_label_counts(test_split1b))
-        # print("\n")
-        # print("type2_train", self.get_label_counts(train_split2))
-        # print("type2_val", self.get_label_counts(val_split2))
-        # print("type2_test", self.get_label_counts(test_split2))
-        # print("\n")
+        print("\n")
+        print("type1a_true0", self.get_label_counts(true0_data))
+        print("type1b_true1", self.get_label_counts(true1_data))
+        print("type2_sampled", self.get_label_counts(sampled_data_for_type2))
+        print("\n")
+        print("type1a_train", self.get_label_counts(train_split1a))
+        print("type1a_val", self.get_label_counts(val_split1a))
+        print("type1a_test", self.get_label_counts(test_split1a))
+        print("\n")
+        print("type1b_train", self.get_label_counts(train_split1b))
+        print("type1b_val", self.get_label_counts(val_split1b))
+        print("type1b_test", self.get_label_counts(test_split1b))
+        print("\n")
+        print("type2_train", self.get_label_counts(train_split2))
+        print("type2_val", self.get_label_counts(val_split2))
+        print("type2_test", self.get_label_counts(test_split2))
+        print("\n")
 
         # Combined
         self.datasets_dict = {"1a": type1a_data, "1b": type1b_data, "2": type2_data}

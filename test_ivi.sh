@@ -37,6 +37,7 @@ echo "export PYTHONPATH=:\$PYTHONPATH:" >> ${SLURM}
         --dataset_sizes 1000 --settings 1a 1b 2 --seed None \
         --data_dir /home/tbbakke/data/fastMRI/singlecoil/singlecoil_all \
         --pathology_path /home/tbbakke/fastmri-plus/Annotations/knee.csv \
+        --checked_path /home/tbbakke/fastmri-plus/Annotations/knee_file_list.csv \
         --save_dir /home/tbbakke/c2st-e/results/mri/tests
     echo
 } >> ${SLURM}

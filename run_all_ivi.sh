@@ -45,7 +45,7 @@ for meta_size in "${META_DATA_SIZES[@]}"; do
         {
             echo CUDA_VISIBLE_DEVICES=0 /home/tbbakke/anaconda3/envs/c2st/bin/python ${LOGS_DIR}/c2st-e/trainMRI_all.py \
                 --num_dataset_samples 0 --num_partitions 3 --num_epochs 30 --do_early_stopping True \
-                --dataset_sizes meta_size --settings 1a 1b 2 --seed None \
+                --dataset_sizes ${meta_size} --settings 1a 1b 2 --seed None \
                 --data_dir /home/tbbakke/data/fastMRI/singlecoil/singlecoil_all \
                 --pathology_path /home/tbbakke/fastmri-plus/Annotations/knee.csv \
                 --checked_path /home/tbbakke/fastmri-plus/Annotations/knee_file_list.csv \

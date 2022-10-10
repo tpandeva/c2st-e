@@ -28,7 +28,7 @@ echo "#SBATCH --time=7-0:00:00" >> ${SLURM}
 echo "#SBATCH --nodes=1" >> ${SLURM}
 echo "export PYTHONPATH=:\$PYTHONPATH:" >> ${SLURM}
 {
-    python /home/tbbakke/anaconda3/envs/c2st/bin/python ${LOGS_DIR}/trainMRI_all.py \
+    CUDA_VISIBLE_DEVICES=0 /home/tbbakke/anaconda3/envs/c2st/bin/python ${LOGS_DIR}/trainMRI_all.py \
         --num_dataset_samples 1 --num_partitions 0 --num_epochs 30 --do_early_stopping True \
         --dataset_sizes 1000 --settings 1a 1b 2 --seed None \
         --save_dir /home/tbbakke/c2st-e/results/mri/tests

@@ -1,6 +1,6 @@
 #!/bin/sh
 
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH://home/tbbakke/anaconda3/envs/ml/lib
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH://home/tbbakke/anaconda3/envs/c2st/lib
 
 # Original code folder is here
 MAIN_DIR=/home/tbbakke/c2st-e

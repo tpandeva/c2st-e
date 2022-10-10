@@ -45,6 +45,7 @@ for meta_size in "${META_DATA_SIZES[@]}"; do
                 --dataset_sizes meta_size --settings 1a 1b 2 --seed None \
                 --data_dir /home/tbbakke/data/fastMRI/singlecoil/singlecoil_all \
                 --pathology_path /home/tbbakke/fastmri-plus/Annotations/knee.csv \
+                --checked_path /home/tbbakke/fastmri-plus/Annotations/knee_file_list.csv \
                 --save_dir /home/tbbakke/c2st-e/results/mri/meta_analysis_oct10
             echo
         } >> ${SLURM}
@@ -82,6 +83,7 @@ done
 #        --dataset_sizes 400 --settings 1a 1b 2 --seed None \
 #        --data_dir /home/tbbakke/data/fastMRI/singlecoil/singlecoil_all \
 #        --pathology_path /home/tbbakke/fastmri-plus/Annotations/knee.csv \
+#        --checked_path /home/tbbakke/fastmri-plus/Annotations/knee_file_list.csv \
 #        --save_dir /home/tbbakke/c2st-e/results/mri/base_exp_oct10
 #    echo
 #
@@ -90,6 +92,7 @@ done
 #        --dataset_sizes 800 --settings 1a 1b 2 --seed None \
 #        --data_dir /home/tbbakke/data/fastMRI/singlecoil/singlecoil_all \
 #        --pathology_path /home/tbbakke/fastmri-plus/Annotations/knee.csv \
+#        --checked_path /home/tbbakke/fastmri-plus/Annotations/knee_file_list.csv \
 #        --save_dir /home/tbbakke/c2st-e/results/mri/base_exp_oct10
 #    echo
 #} >> ${SLURM}
@@ -126,6 +129,7 @@ done
 #        --dataset_sizes 1000 --settings 1a 1b 2 --seed None \
 #        --data_dir /home/tbbakke/data/fastMRI/singlecoil/singlecoil_all \
 #        --pathology_path /home/tbbakke/fastmri-plus/Annotations/knee.csv \
+#        --checked_path /home/tbbakke/fastmri-plus/Annotations/knee_file_list.csv \
 #        --save_dir /home/tbbakke/c2st-e/results/mri/base_exp_oct10
 #    echo
 #
@@ -134,6 +138,7 @@ done
 #        --dataset_sizes 2000 --settings 1a 1b 2 --seed None \
 #        --data_dir /home/tbbakke/data/fastMRI/singlecoil/singlecoil_all \
 #        --pathology_path /home/tbbakke/fastmri-plus/Annotations/knee.csv \
+#        --checked_path /home/tbbakke/fastmri-plus/Annotations/knee_file_list.csv \
 #        --save_dir /home/tbbakke/c2st-e/results/mri/base_exp_oct10
 #    echo
 #} >> ${SLURM}
@@ -170,6 +175,7 @@ done
 #        --dataset_sizes 3000 --settings 1a 1b 2 --seed None \
 #        --data_dir /home/tbbakke/data/fastMRI/singlecoil/singlecoil_all \
 #        --pathology_path /home/tbbakke/fastmri-plus/Annotations/knee.csv \
+#        --checked_path /home/tbbakke/fastmri-plus/Annotations/knee_file_list.csv \
 #        --save_dir /home/tbbakke/c2st-e/results/mri/base_exp_oct10
 #    echo
 #
@@ -178,6 +184,7 @@ done
 #        --dataset_sizes 4000 --settings 1a 1b 2 --seed None \
 #        --data_dir /home/tbbakke/data/fastMRI/singlecoil/singlecoil_all \
 #        --pathology_path /home/tbbakke/fastmri-plus/Annotations/knee.csv \
+#        --checked_path /home/tbbakke/fastmri-plus/Annotations/knee_file_list.csv \
 #        --save_dir /home/tbbakke/c2st-e/results/mri/base_exp_oct10
 #    echo
 #} >> ${SLURM}
@@ -214,6 +221,7 @@ done
 #        --dataset_sizes 5000 --settings 1a 1b 2 --seed None \
 #        --data_dir /home/tbbakke/data/fastMRI/singlecoil/singlecoil_all \
 #        --pathology_path /home/tbbakke/fastmri-plus/Annotations/knee.csv \
+#        --checked_path /home/tbbakke/fastmri-plus/Annotations/knee_file_list.csv \
 #        --save_dir /home/tbbakke/c2st-e/results/mri/base_exp_oct10
 #    echo
 #} >> ${SLURM}

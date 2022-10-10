@@ -74,15 +74,17 @@ echo "#SBATCH --time=7-0:00:00" >> ${SLURM}
 echo "#SBATCH --nodes=1" >> ${SLURM}
 echo "export PYTHONPATH=:\$PYTHONPATH:" >> ${SLURM}
 
-python /home/tbbakke/anaconda3/envs/c2st/bin/python ${LOGS_DIR}/trainMRI_all.py \
-    --num_dataset_samples 100 --num_partitions 0 --num_epochs 30 --do_early_stopping True \
-    --dataset_sizes 400 --settings 1a 1b 2 --seed None \
-    --save_dir /home/tbbakke/c2st-e/results/mri/base_exp_oct10
+{
+    python /home/tbbakke/anaconda3/envs/c2st/bin/python ${LOGS_DIR}/trainMRI_all.py \
+        --num_dataset_samples 100 --num_partitions 0 --num_epochs 30 --do_early_stopping True \
+        --dataset_sizes 400 --settings 1a 1b 2 --seed None \
+        --save_dir /home/tbbakke/c2st-e/results/mri/base_exp_oct10
 
-python /home/tbbakke/anaconda3/envs/c2st/bin/python ${LOGS_DIR}/trainMRI_all.py \
-    --num_dataset_samples 100 --num_partitions 0 --num_epochs 30 --do_early_stopping True \
-    --dataset_sizes 800 --settings 1a 1b 2 --seed None \
-    --save_dir /home/tbbakke/c2st-e/results/mri/base_exp_oct10
+    python /home/tbbakke/anaconda3/envs/c2st/bin/python ${LOGS_DIR}/trainMRI_all.py \
+        --num_dataset_samples 100 --num_partitions 0 --num_epochs 30 --do_early_stopping True \
+        --dataset_sizes 800 --settings 1a 1b 2 --seed None \
+        --save_dir /home/tbbakke/c2st-e/results/mri/base_exp_oct10
+} >> ${SLURM}
 
 sbatch ${SLURM}
 sleep 1
@@ -110,16 +112,17 @@ echo "#SBATCH --mem=8G" >> ${SLURM}
 echo "#SBATCH --time=7-0:00:00" >> ${SLURM}
 echo "#SBATCH --nodes=1" >> ${SLURM}
 echo "export PYTHONPATH=:\$PYTHONPATH:" >> ${SLURM}
+{
+    python /home/tbbakke/anaconda3/envs/c2st/bin/python ${LOGS_DIR}/trainMRI_all.py \
+        --num_dataset_samples 100 --num_partitions 0 --num_epochs 30 --do_early_stopping True \
+        --dataset_sizes 1000 --settings 1a 1b 2 --seed None \
+        --save_dir /home/tbbakke/c2st-e/results/mri/base_exp_oct10
 
-python /home/tbbakke/anaconda3/envs/c2st/bin/python ${LOGS_DIR}/trainMRI_all.py \
-    --num_dataset_samples 100 --num_partitions 0 --num_epochs 30 --do_early_stopping True \
-    --dataset_sizes 1000 --settings 1a 1b 2 --seed None \
-    --save_dir /home/tbbakke/c2st-e/results/mri/base_exp_oct10
-
-python /home/tbbakke/anaconda3/envs/c2st/bin/python ${LOGS_DIR}/trainMRI_all.py \
-    --num_dataset_samples 100 --num_partitions 0 --num_epochs 30 --do_early_stopping True \
-    --dataset_sizes 2000 --settings 1a 1b 2 --seed None \
-    --save_dir /home/tbbakke/c2st-e/results/mri/base_exp_oct10
+    python /home/tbbakke/anaconda3/envs/c2st/bin/python ${LOGS_DIR}/trainMRI_all.py \
+        --num_dataset_samples 100 --num_partitions 0 --num_epochs 30 --do_early_stopping True \
+        --dataset_sizes 2000 --settings 1a 1b 2 --seed None \
+        --save_dir /home/tbbakke/c2st-e/results/mri/base_exp_oct10
+} >> ${SLURM}
 
 sbatch ${SLURM}
 sleep 1
@@ -147,16 +150,17 @@ echo "#SBATCH --mem=8G" >> ${SLURM}
 echo "#SBATCH --time=7-0:00:00" >> ${SLURM}
 echo "#SBATCH --nodes=1" >> ${SLURM}
 echo "export PYTHONPATH=:\$PYTHONPATH:" >> ${SLURM}
+{
+    python /home/tbbakke/anaconda3/envs/c2st/bin/python ${LOGS_DIR}/trainMRI_all.py \
+        --num_dataset_samples 100 --num_partitions 0 --num_epochs 30 --do_early_stopping True \
+        --dataset_sizes 3000 --settings 1a 1b 2 --seed None \
+        --save_dir /home/tbbakke/c2st-e/results/mri/base_exp_oct10
 
-python /home/tbbakke/anaconda3/envs/c2st/bin/python ${LOGS_DIR}/trainMRI_all.py \
-    --num_dataset_samples 100 --num_partitions 0 --num_epochs 30 --do_early_stopping True \
-    --dataset_sizes 3000 --settings 1a 1b 2 --seed None \
-    --save_dir /home/tbbakke/c2st-e/results/mri/base_exp_oct10
-
-python /home/tbbakke/anaconda3/envs/c2st/bin/python ${LOGS_DIR}/trainMRI_all.py \
-    --num_dataset_samples 100 --num_partitions 0 --num_epochs 30 --do_early_stopping True \
-    --dataset_sizes 4000 --settings 1a 1b 2 --seed None \
-    --save_dir /home/tbbakke/c2st-e/results/mri/base_exp_oct10
+    python /home/tbbakke/anaconda3/envs/c2st/bin/python ${LOGS_DIR}/trainMRI_all.py \
+        --num_dataset_samples 100 --num_partitions 0 --num_epochs 30 --do_early_stopping True \
+        --dataset_sizes 4000 --settings 1a 1b 2 --seed None \
+        --save_dir /home/tbbakke/c2st-e/results/mri/base_exp_oct10
+} >> ${SLURM}
 
 sbatch ${SLURM}
 sleep 1
@@ -184,11 +188,12 @@ echo "#SBATCH --mem=8G" >> ${SLURM}
 echo "#SBATCH --time=7-0:00:00" >> ${SLURM}
 echo "#SBATCH --nodes=1" >> ${SLURM}
 echo "export PYTHONPATH=:\$PYTHONPATH:" >> ${SLURM}
-
-python /home/tbbakke/anaconda3/envs/c2st/bin/python ${LOGS_DIR}/trainMRI_all.py \
-    --num_dataset_samples 100 --num_partitions 0 --num_epochs 30 --do_early_stopping True \
-    --dataset_sizes 5000 --settings 1a 1b 2 --seed None \
-    --save_dir /home/tbbakke/c2st-e/results/mri/base_exp_oct10
+{
+    python /home/tbbakke/anaconda3/envs/c2st/bin/python ${LOGS_DIR}/trainMRI_all.py \
+        --num_dataset_samples 100 --num_partitions 0 --num_epochs 30 --do_early_stopping True \
+        --dataset_sizes 5000 --settings 1a 1b 2 --seed None \
+        --save_dir /home/tbbakke/c2st-e/results/mri/base_exp_oct10
+} >> ${SLURM}
 
 sbatch ${SLURM}
 sleep 1

@@ -1,21 +1,17 @@
 #!/bin/sh
 
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/tbbakke/anaconda3/lib/
+
 # Original code folder is here
 MAIN_DIR=/home/tbbakke/c2st-e
 # Launch dir
 LAUNCH_DIR=/home/tbbakke/c2st-e/launch/
 mkdir -p "${LAUNCH_DIR}"
 
-echo ${MAIN_DIR}
-echo ${LAUNCH_DIR}
-
 # Create dir for specific experiment run
 dt=$(date '+%F_%T.%3N')
 LOGS_DIR=${LAUNCH_DIR}/${dt}
 mkdir -p "${LOGS_DIR}"
-
-echo ${LOGS_DIR}
-
 # Copy code to experiment folder
 rsync -arm ${MAIN_DIR} --stats --exclude-from=${MAIN_DIR}/"SYNC_EXCLUDE" ${LOGS_DIR};
 JOB_NAME=base_test

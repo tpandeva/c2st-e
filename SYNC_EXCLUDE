@@ -1,0 +1,6 @@
+results/
+wandb/
+launch/
+remote_notebooks/
+slurm*
+jupyter_notebooks/

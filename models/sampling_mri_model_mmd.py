@@ -32,7 +32,7 @@ class SamplingModelModuleMMD:
         self.model = PathologyClassifierMMD(in_chans, chans, num_pool_layers, drop_prob, input_shape).to(self.device)
 
         self.embedding_save_dir = save_dir / "embeddings"
-        self.embedding_save_dir.mkdir(parents=True, exist_ok=False)
+        self.embedding_save_dir.mkdir(parents=True, exist_ok=False)  # Should not exist yet
 
         self.early_stopping = do_early_stopping
         self.patience = patience

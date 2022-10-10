@@ -218,7 +218,7 @@ def c2st_prob1(y, prob1):
     matches = y == y_hat
     accuracy = torch.sum(matches) / y.shape[0]
     n_te = y.shape[0]
-    stat = 2 * np.sqrt(n_te) * torch.abs(accuracy - 0.5)
+    stat = 2 * np.sqrt(n_te) * (accuracy - 0.5)
     pval = 1 - Normal(0, 1).cdf(stat).item()
     # p-value OR list of p-values if num_batches is not None
     return pval
@@ -239,11 +239,12 @@ def c2st_prob1(y, prob1):
 #     return p_val
 
 
-def test_le(x, y, N_per, alpha=0.05):
+def test_le(x, y, N_per, alpha=0.05, sigmoid=False):
     N = x.shape[0]
-    # f = torch.nn.Softmax()
-    f = torch.sigmoid
-    x = f(x)
+    if sigmoid:
+        # f = torch.nn.Softmax()
+        f = torch.sigmoid
+        x = f(x)
     N1 = y.sum().int()
     # STAT = abs((x[y == 1, 0]).type(torch.FloatTensor).mean() - (x[y == 0, 0]).type(torch.FloatTensor).mean())
     STAT = abs((x[y == 1]).type(torch.FloatTensor).mean() - (x[y == 0]).type(torch.FloatTensor).mean())
@@ -284,8 +285,10 @@ if __name__ == "__main__":
     # Save args
     date_string = f"{datetime.now():%Y-%m-%d}"
     time_string = f"{datetime.now():%H:%M:%S}"
-    save_dir = args.save_dir / date_string / time_string
-    save_dir.mkdir(parents=True, exist_ok=False)
+    save_dir = args.save_dir / date_string
+    save_dir.mkdir(parents=True, exist_ok=True)  # OK if date folder exists already
+    save_dir = save_dir / time_string
+    save_dir.mkdir(parents=True, exist_ok=False)  # Not OK if time folder exists already
     args_dict = {key: str(value) for key, value in vars(args).items()}
     with open(save_dir / "args.json", "w") as f:
         json.dump(args_dict, f, indent=4)
@@ -372,7 +375,7 @@ if __name__ == "__main__":
         if isinstance(args.num_partitions, int):
             if dataset_size * args.num_partitions > max_data:  # Max dataset size
                 raise RuntimeError(
-                    f"Cannot partition data into {args.num_partition} bits of size {dataset_size}. Only {max_data} "
+                    f"Cannot partition data into {args.num_partitions} bits of size {dataset_size}. Only {max_data} "
                     f"points available."
                 )
         # Sample datasets of this size.
@@ -485,8 +488,10 @@ if __name__ == "__main__":
                 print(f" 1 / E-value: {1 / e_val:.4f} (actual: {1 / e_val})")
                 p_val_c2st = c2st_prob1(targets, test_prob1)
                 print(f"     p-value: {p_val_c2st:.4f} (actual: {p_val_c2st})")
-                _, _, _, p_val_l = test_le(test_logit1, targets, 100)
+                _, _, _, p_val_l = test_le(test_logit1, targets, 100, sigmoid=False)
                 print(f"     p-value (L): {p_val_l:.4f} (actual: {p_val_l})")
+                _, _, _, p_val_ls = test_le(test_logit1, targets, 100, sigmoid=True)
+                print(f"     p-value (L - sigmoid): {p_val_ls:.4f} (actual: {p_val_ls})")
                 # _, p_val_mmd, _ = mmd2_permutations(Kxyxy, mmd_size, permutations=200)
                 # print(f"     p-value (MMD): {p_val_mmd:.4f} (actual: {p_val_mmd})")
 
@@ -494,6 +499,7 @@ if __name__ == "__main__":
                     "e_val": e_val,
                     "p_val": p_val_c2st,
                     "p_val_l": p_val_l,
+                    "p_val_ls": p_val_ls,
                     # "p_val_mmd": p_val_mmd,
                     "test_loss": test_loss,
                     "test_acc": test_acc,

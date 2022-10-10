@@ -1,6 +1,8 @@
 #!/bin/sh
 
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH://home/tbbakke/anaconda3/envs/c2st/lib
+#conda update -n base -c defaults conda
+
+#export LD_LIBRARY_PATH=$LD_LIBRARY_PATH://home/tbbakke/anaconda3/envs/c2st/lib
 
 # Original code folder is here
 MAIN_DIR=/home/tbbakke/c2st-e
@@ -33,6 +35,8 @@ echo "export PYTHONPATH=:\$PYTHONPATH:" >> ${SLURM}
     echo CUDA_VISIBLE_DEVICES=0 /home/tbbakke/anaconda3/envs/c2st/bin/python ${LOGS_DIR}/c2st-e/trainMRI_all.py \
         --num_dataset_samples 1 --num_partitions 0 --num_epochs 30 --do_early_stopping True \
         --dataset_sizes 1000 --settings 1a 1b 2 --seed None \
+        --data_dir /home/tbbakke/data/fastMRI/singlecoil/singlecoil_all \
+        --pathology_path /home/tbbakke/fastmri-plus/Annotations/knee.csv \
         --save_dir /home/tbbakke/c2st-e/results/mri/tests
     echo
 } >> ${SLURM}

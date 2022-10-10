@@ -24,8 +24,11 @@ class SamplingModelModule:
         patience=3,
     ):
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        self.model = PathologyClassifier(in_chans, chans, num_pool_layers, drop_prob, input_shape).to(self.device)
 
+        # self.model = PathologyClassifier(in_chans, chans, num_pool_layers, drop_prob, input_shape).to(self.device)
+        self.model = torch.nn.DataParallel(
+            PathologyClassifier(in_chans, chans, num_pool_layers, drop_prob, input_shape).to(self.device)
+        )
         self.early_stopping = do_early_stopping
         self.patience = patience
 

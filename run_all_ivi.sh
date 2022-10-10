@@ -46,7 +46,7 @@ for meta_size in "${META_DATA_SIZES[@]}"; do
                 --data_dir /home/tbbakke/data/fastMRI/singlecoil/singlecoil_all \
                 --pathology_path /home/tbbakke/fastmri-plus/Annotations/knee.csv \
                 --checked_path /home/tbbakke/fastmri-plus/Annotations/knee_file_list.csv \
-                --save_dir /home/tbbakke/c2st-e/results/mri/meta_analysis_oct10
+                --save_dir /home/tbbakke/c2st-e/results/mri/meta_analysis_oct10_ivi
             echo
         } >> ${SLURM}
     done

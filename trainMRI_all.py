@@ -27,9 +27,9 @@ from models.sampling_mri_model_mmd import SamplingModelModuleMMD
 # Save dir not necessary, but useful to find this back later.
 
 conda activate c2st
-python trainMRI.py --num_dataset_samples 100 --num_partitions 0 --num_epochs 30 --do_early_stopping True \
+python trainMRI_all.py --num_dataset_samples 100 --num_partitions 0 --num_epochs 30 --do_early_stopping True \
      --dataset_sizes 200 400 1000 2000 3000 4000 5000 --settings 1a 1b 2 --seed None \
-     --save_dir /home/timsey/Projects/c2st-e/results/mri/base_exp_oct7
+     --save_dir /home/timsey/Projects/c2st-e/results/mri/base_exp_oct10
 
 
 # Meta-analysis experiment (3 partitions). 
@@ -41,9 +41,9 @@ python trainMRI.py --num_dataset_samples 100 --num_partitions 0 --num_epochs 30 
 conda activate c2st
 for i in {1..100}
 do 
-    python trainMRI.py --num_dataset_samples 0 --num_partitions 3 --num_epochs 30 --do_early_stopping True \
+    python trainMRI_all.py --num_dataset_samples 0 --num_partitions 3 --num_epochs 30 --do_early_stopping True \
      --dataset_sizes 200 400 1000 2000 --settings 1a 1b 2 --seed None \
-     --save_dir /home/timsey/Projects/c2st-e/results/mri/meta_analysis_oct7
+     --save_dir /home/timsey/Projects/c2st-e/results/mri/meta_analysis_oct10
 done
 
 

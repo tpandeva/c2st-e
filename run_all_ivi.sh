@@ -84,7 +84,7 @@ echo "export PYTHONPATH=:\$PYTHONPATH:" >> ${SLURM}
         --data_dir /home/tbbakke/data/fastMRI/singlecoil/singlecoil_all \
         --pathology_path /home/tbbakke/fastmri-plus/Annotations/knee.csv \
         --checked_path /home/tbbakke/fastmri-plus/Annotations/knee_file_list.csv \
-        --save_dir /home/tbbakke/c2st-e/results/mri/meta_analysis_oct10_ivi
+        --save_dir /home/tbbakke/c2st-e/results/mri/meta_analysis_oct11_ivi
     echo
 } >> ${SLURM}
 
@@ -121,7 +121,7 @@ for i in {1..4}; do
             --data_dir /home/tbbakke/data/fastMRI/singlecoil/singlecoil_all \
             --pathology_path /home/tbbakke/fastmri-plus/Annotations/knee.csv \
             --checked_path /home/tbbakke/fastmri-plus/Annotations/knee_file_list.csv \
-            --save_dir /home/tbbakke/c2st-e/results/mri/meta_analysis_oct10_ivi
+            --save_dir /home/tbbakke/c2st-e/results/mri/meta_analysis_oct11_ivi
         echo
     } >> ${SLURM}
 done

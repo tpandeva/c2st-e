@@ -88,7 +88,7 @@ echo "export PYTHONPATH=:\$PYTHONPATH:" >> ${SLURM}
 } >> ${SLURM}
 
 sbatch ${SLURM}
-sleep 1
+sleep 10  # Wait longer because of data folder creation stuff
 
 
 # Create dir for specific experiment run

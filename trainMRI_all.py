@@ -284,7 +284,7 @@ if __name__ == "__main__":
 
     # Save args
     date_string = f"{datetime.now():%Y-%m-%d}"
-    time_string = f"{datetime.now():%H:%M:%S}"
+    time_string = f"{datetime.now():%H:%M:%S.%f}"[:-3]  # milliseconds added
     save_dir = args.save_dir / date_string
     save_dir.mkdir(parents=True, exist_ok=True)  # OK if date folder exists already
     save_dir = save_dir / time_string

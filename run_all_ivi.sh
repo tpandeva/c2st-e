@@ -83,7 +83,7 @@ echo "export PYTHONPATH=:\$PYTHONPATH:" >> ${SLURM}
         --data_dir /home/tbbakke/data/fastMRI/singlecoil/singlecoil_all \
         --pathology_path /home/tbbakke/fastmri-plus/Annotations/knee.csv \
         --checked_path /home/tbbakke/fastmri-plus/Annotations/knee_file_list.csv \
-        --save_dir /home/tbbakke/c2st-e/results/mri/base_exp_oct11_ivi
+        --save_dir /home/tbbakke/c2st-e/results/mri/base_exp_oct11_ivi1
     echo
 } >> ${SLURM}
 
@@ -121,7 +121,7 @@ echo "export PYTHONPATH=:\$PYTHONPATH:" >> ${SLURM}
         --data_dir /home/tbbakke/data/fastMRI/singlecoil/singlecoil_all \
         --pathology_path /home/tbbakke/fastmri-plus/Annotations/knee.csv \
         --checked_path /home/tbbakke/fastmri-plus/Annotations/knee_file_list.csv \
-        --save_dir /home/tbbakke/c2st-e/results/mri/base_exp_oct11_ivi
+        --save_dir /home/tbbakke/c2st-e/results/mri/base_exp_oct11_ivi2
     echo
 } >> ${SLURM}
 

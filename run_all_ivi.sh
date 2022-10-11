@@ -61,7 +61,7 @@ LOGS_DIR=${LAUNCH_DIR}/${dt}
 mkdir -p "${LOGS_DIR}"
 # Copy code to experiment folder
 rsync -arm ${MAIN_DIR} --stats --exclude-from=${MAIN_DIR}/"SYNC_EXCLUDE" ${LOGS_DIR};
-JOB_NAME=base_200
+JOB_NAME=base_400
 SLURM=${LOGS_DIR}/run.slrm
 # Make SLURM file
 echo "${SLURM}"
@@ -83,7 +83,7 @@ echo "export PYTHONPATH=:\$PYTHONPATH:" >> ${SLURM}
         --data_dir /home/tbbakke/data/fastMRI/singlecoil/singlecoil_all \
         --pathology_path /home/tbbakke/fastmri-plus/Annotations/knee.csv \
         --checked_path /home/tbbakke/fastmri-plus/Annotations/knee_file_list.csv \
-        --save_dir /home/tbbakke/c2st-e/results/mri/base_exp_oct10_ivi
+        --save_dir /home/tbbakke/c2st-e/results/mri/base_exp_oct11_ivi
     echo
 } >> ${SLURM}
 
@@ -97,7 +97,7 @@ LOGS_DIR=${LAUNCH_DIR}/${dt}
 mkdir -p "${LOGS_DIR}"
 # Copy code to experiment folder
 rsync -arm ${MAIN_DIR} --stats --exclude-from=${MAIN_DIR}/"SYNC_EXCLUDE" ${LOGS_DIR};
-JOB_NAME=base_400_800
+JOB_NAME=base_800
 SLURM=${LOGS_DIR}/run.slrm
 # Make SLURM file
 echo "${SLURM}"
@@ -121,7 +121,7 @@ echo "export PYTHONPATH=:\$PYTHONPATH:" >> ${SLURM}
         --data_dir /home/tbbakke/data/fastMRI/singlecoil/singlecoil_all \
         --pathology_path /home/tbbakke/fastmri-plus/Annotations/knee.csv \
         --checked_path /home/tbbakke/fastmri-plus/Annotations/knee_file_list.csv \
-        --save_dir /home/tbbakke/c2st-e/results/mri/base_exp_oct10
+        --save_dir /home/tbbakke/c2st-e/results/mri/base_exp_oct11_ivi
     echo
 } >> ${SLURM}
 

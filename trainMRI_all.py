@@ -1,4 +1,5 @@
 import random
+import time
 from datetime import datetime
 import numpy as np
 import torch
@@ -595,6 +596,7 @@ def train_model_and_do_anytime_tests(args, dataset_ind, setting, input_shape, tr
 
 
 if __name__ == "__main__":
+    start_time = time.perf_counter()
     args = create_arg_parser().parse_args()
     if args.num_dataset_samples < 0 or args.num_partitions < 0:
         raise ValueError("`num_dataset_samples` and `num_partitions` must be >= 0.")
@@ -699,6 +701,7 @@ if __name__ == "__main__":
     # And all this is split over 2 classes.
     # So, 2 * 2 * 2 * 5 (20%) = 40 as divisor.
     for dataset_size in args.dataset_sizes:
+        ds_time = time.perf_counter()
         print(f"\n ----- Dataset size: {dataset_size} ----- ")
         size_results_dict = {dataset_ind: {} for dataset_ind in range(num_samples)}
         if isinstance(args.num_partitions, int):
@@ -710,6 +713,7 @@ if __name__ == "__main__":
         # Sample datasets of this size.
         slice_splits = None
         for dataset_ind in range(num_samples):
+            ind_time = time.perf_counter()
             print(f"\n  ----- Dataset index: {dataset_ind} ----- ")
             # Do this experiment a bunch of times, so we can get an error estimate.
             # NOTE: Can also do partition split to treat as different experiments!
@@ -739,6 +743,9 @@ if __name__ == "__main__":
                         args, dataset_ind, setting, input_shape, train, val, test
                     )
 
+            print(f"Dataset index {dataset_ind} took {time.perf_counter() - ind_time:.2f} seconds.")
+        print(f"Dataset size {dataset_size} took {time.perf_counter() - ds_time:.2f} seconds.")
+
         results_dict[dataset_size] = size_results_dict
         # Saving results
         print(f"Saving size {dataset_size} results to {save_dir}")
@@ -749,3 +756,5 @@ if __name__ == "__main__":
     print(f"Saving final results to {save_dir}")
     with open(save_dir / "results.json", "w") as f:
         json.dump({str(key): val for key, val in results_dict.items()}, f, indent=4)
+
+    print(f"Full run took {time.perf_counter() - start_time:.2f} seconds.")

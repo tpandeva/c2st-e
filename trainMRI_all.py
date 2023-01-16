@@ -489,31 +489,41 @@ def train_model_and_do_anytime_tests(args, dataset_ind, setting, input_shape, tr
         "test_acc": [],
         "result": [],
     }
-    train_volumes = []
-    val_volumes = []
-    test_volumes = []
-    # A round uses two volumes (equal number of volumes from each class), skip last two rounds because
-    # we need val and test data as well.
-    num_rounds = min(len(positive_volumes), len(negative_volumes)) - 2
+    # TODO: Check this!
+    num_per_batch = 5
+    min_of_volumes = min(len(positive_volumes), len(negative_volumes))
+    num_rounds = (min_of_volumes // num_per_batch - 2 if min_of_volumes % num_per_batch == 0
+                  else min_of_volumes // num_per_batch - 1)
     running_e_val = 1
     for i in range(num_rounds):
         print(f"Round {i} / {num_rounds - 1}")
         if i == 0:  # First round, assign volumes.
-            train_volumes += [positive_volumes[i], negative_volumes[i]]
-            val_volumes = [positive_volumes[i + 1], negative_volumes[i + 1]]
-            test_volumes = [positive_volumes[i + 2], negative_volumes[i + 2]]
+            train_volumes = [
+                positive_volumes[:num_per_batch],
+                negative_volumes[:num_per_batch],
+            ]
+            val_volumes = [
+                positive_volumes[num_per_batch: 2 * num_per_batch],
+                negative_volumes[num_per_batch: 2 * num_per_batch],
+            ]
+            test_volumes = [
+                positive_volumes[2 * num_per_batch: 3 * num_per_batch],
+                negative_volumes[2 * num_per_batch: 3 * num_per_batch],
+            ]
         else:  # Subsequent rounds, use validation and test data from previous round.
             train_volumes += val_volumes
             val_volumes = test_volumes
-            test_volumes = [positive_volumes[i + 2], negative_volumes[i + 2]]
-
+            test_volumes = [
+                positive_volumes[(i + 2) * num_per_batch: (i + 3) * num_per_batch],
+                negative_volumes[(i + 2) * num_per_batch: (i + 3) * num_per_batch]
+            ]
         if i < args.num_skip_rounds:
             continue
 
         # Overwrite dataset structures with these batches
-        train.raw_samples = [slice for vol in train_volumes for slice in data_per_volume[vol]]
-        val.raw_samples = [slice for vol in val_volumes for slice in data_per_volume[vol]]
-        test.raw_samples = [slice for vol in test_volumes for slice in data_per_volume[vol]]
+        train.raw_samples = [sl for vol_list in train_volumes for vol in vol_list for sl in data_per_volume[vol]]
+        val.raw_samples = [sl for vol_list in val_volumes for vol in vol_list for sl in data_per_volume[vol]]
+        test.raw_samples = [sl for vol_list in test_volumes for vol in vol_list for sl in data_per_volume[vol]]
         print("Train: {}, Val: {}, Test: {}".format(len(train), len(val), len(test)))
         # Create loaders for this round
         train_loader = torch.utils.data.DataLoader(

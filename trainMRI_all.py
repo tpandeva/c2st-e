@@ -157,7 +157,6 @@ def create_arg_parser():
             "num_dataset_samples (set either to 0)."
         ),
     )
-
     parser.add_argument("--crop_size", default=320, type=int, help="MRI image crop size (square).")
     parser.add_argument("--batch_size", default=64, type=int, help="Train batch size.")
     parser.add_argument("--num_workers", default=20, type=int, help="Number of dataloader workers.")
@@ -191,6 +190,29 @@ def create_arg_parser():
         default=False,
         type=str2bool,
         help="Do quick run-test (ignore values of these runs).",
+    )
+    parser.add_argument(
+        "--test_type",
+        default="base",
+        type=str,
+        choices=["base", "anytime"],
+        help="Type of test to run ('base' or 'anytime').",
+    )
+    parser.add_argument(
+        "--num_skip_rounds",
+        default=0,
+        type=int,
+        help="Number of rounds to skip model training on during anytime testing (to start with larger datasets).",
+        # NOTE: This is different from only skipping the E-value computation!
+    )
+    parser.add_argument(
+        "--cold_start",
+        default=False,
+        type=str2bool,
+        help=(
+            "Whether to retrain model from scratch every round of anytime testing (else continues "
+            "from previous round).",
+        )
     )
     return parser
 
@@ -263,6 +285,303 @@ def test_le(x, y, N_per, alpha=0.05, sigmoid=False):
     if STAT.item() > threshold:
         h = 1
     return h, threshold, STAT, p_val
+
+
+def train_model_and_do_base_tests(args, dataset_ind, setting, input_shape, train, val, test):
+    train_loader = torch.utils.data.DataLoader(
+        dataset=train,
+        batch_size=args.batch_size,
+        num_workers=args.num_workers,
+        worker_init_fn=None,
+        shuffle=True,
+    )
+    val_loader = torch.utils.data.DataLoader(
+        dataset=val,
+        batch_size=256,
+        num_workers=args.num_workers,
+        worker_init_fn=None,
+        shuffle=False,
+    )
+    test_loader = torch.utils.data.DataLoader(
+        dataset=test,
+        batch_size=256,
+        num_workers=args.num_workers,
+        worker_init_fn=None,
+        shuffle=False,
+    )
+
+    # --------------------------------------
+    # ------ Model, training, testing ------
+    # --------------------------------------
+    print(f"\n Starting C2ST-E/P/L training...")
+    module = SamplingModelModule(
+        args.in_chans,
+        args.chans,
+        args.num_pool_layers,
+        args.drop_prob,
+        input_shape,
+        args.lr,
+        args.total_lr_gamma,
+        args.num_epochs,
+        args.do_early_stopping,
+        patience=3,
+    )
+
+    (
+        train_losses,
+        val_losses,
+        val_accs,
+        extra_output,
+        total_time,
+    ) = module.train(train_loader, val_loader, print_every=1, eval_every=1)
+    print(f" Total time: {total_time:.2f}s")
+    test_loss, test_acc, test_extra_output = module.test(test_loader)
+
+    # print(f"\n Starting MMD training...")
+    # # MMD classifier training and testing
+    # module = SamplingModelModuleMMD(
+    #     args.in_chans,
+    #     args.chans,
+    #     args.num_pool_layers,
+    #     args.drop_prob,
+    #     input_shape,
+    #     args.lr,
+    #     args.total_lr_gamma,
+    #     args.num_epochs,
+    #     save_dir / str(dataset_size) / str(dataset_ind) / str(setting),  # For logit saving
+    #     args.do_early_stopping,
+    # )
+    #
+    # (
+    #     train_losses_mmd,
+    #     val_losses_mmd,
+    #     extra_output_mmd,
+    #     total_time_mmd,
+    # ) = module.train(train_loader, val_loader, print_every=1, eval_every=1)
+    # print(f" Total time: {total_time_mmd:.2f}s")
+    # test_loss_mmd, Kxyxy, mmd_size, test_extra_output_mmd = module.test(test_loader)
+
+    # --------------------------
+    # ------ Sample tests ------
+    # --------------------------
+
+    # Targets are 1-dimensional
+    targets = test_extra_output["targets"]
+    # logits are 1-dimensional
+    test_logit1 = test_extra_output["logits"]
+    # test_prob1 is probability of class 1 given by model
+    test_prob1 = torch.sigmoid(test_logit1)
+
+    e_val = c2st_e_prob1(targets, test_prob1)
+    print(f" 1 / E-value: {1 / e_val:.4f} (actual: {1 / e_val})")
+    p_val_c2st = c2st_prob1(targets, test_prob1)
+    print(f"     p-value: {p_val_c2st:.4f} (actual: {p_val_c2st})")
+    _, _, _, p_val_l = test_le(test_logit1, targets, 100, sigmoid=False)
+    print(f"     p-value (L): {p_val_l:.4f} (actual: {p_val_l})")
+    _, _, _, p_val_ls = test_le(test_logit1, targets, 100, sigmoid=True)
+    print(f"     p-value (L - sigmoid): {p_val_ls:.4f} (actual: {p_val_ls})")
+    # _, p_val_mmd, _ = mmd2_permutations(Kxyxy, mmd_size, permutations=200)
+    # print(f"     p-value (MMD): {p_val_mmd:.4f} (actual: {p_val_mmd})")
+
+    results = {
+        "e_val": e_val,
+        "p_val": p_val_c2st,
+        "p_val_l": p_val_l,
+        "p_val_ls": p_val_ls,
+        # "p_val_mmd": p_val_mmd,
+        "test_loss": test_loss,
+        "test_acc": test_acc,
+        # "test_loss_mmd": test_loss_mmd,
+    }
+    return results
+
+
+def train_model_and_do_anytime_tests(args, dataset_ind, setting, input_shape, train, val, test):
+    """Train and test model for anytime testing."""
+
+    # Now get batches where each batch is a volume
+    # Note that the volumes are either fully clean OR pathological.
+    # For Type-1: each volume contains both (simulated) classes.
+    # For Type-2: each volume contains only one (true) class.
+    # This means we need at least two volumes per round! And check (for Type-2) whether both classes are there.
+    # So training proceeds by grabbing two batches -- one for each class -- and training on them. We also grab two
+    # batches for validation, and for testing. This is one round. For the next round, we use the validation batch for
+    # training, the test batch for validation, and grab a new batch for testing. Repeat until we reject the null or
+    # run out of data.
+    # Easiest way to do this is probably to change the train/val/test loaders every round.
+    def make_data_per_volume(train, val, test):
+        data = train.raw_samples + val.raw_samples + test.raw_samples
+        data_per_volume = {}
+        for datum in data:
+            volume = datum.fname.name
+            if volume not in data_per_volume:
+                data_per_volume[volume] = []
+            data_per_volume[volume].append(datum)
+        return data_per_volume
+
+    data_per_volume = make_data_per_volume(train, val, test)
+    if setting in ["1a", "1b"]:
+        for volume in data_per_volume:
+            # Need at least two samples in a volume, so we can guarantee a positive and negative slice per
+            # volume for the Type-1 setting.
+            assert len(data_per_volume[volume]) > 1, f"Reconstructed volume {volume} only has one sample!"
+    volumes = [key for key in data_per_volume.keys()]
+    num_volumes = len(volumes)
+
+    # Track which volumes are positive and which are negative (for Type-2)
+    positive_volumes = []
+    negative_volumes = []
+    for i, volume in enumerate(volumes):
+        # Type-1 volumes contain simulated positive and negative samples, so just assign equally.
+        # Note that this may go wrong (lead to volumes with only one class) if we don't use the full dataset, since
+        # the smaller datasets have randomly thrown out data without checking volume boundaries. I.e. it has randomly
+        # thrown out parts of some (or all) volumes, stratified by True label. This happens in SampledSlices().
+        # NOTE: The 'full' filtered 7236 dataset ({False: 3618, True: 8311} --> 2x3618 = 7236) technically has this
+        # problem as well. Type-1 data is assigned a simulated label stratified on the slices in its
+        # sample (i.e. dataset_size). This assignment does not respect volume boundaries. Hence, when reconstructing
+        # volumes later (as we do here), we may end up with a volume that contains only the one simulated class.
+        # Type-2 volumes are either fully positive or negative, so we never run into this problem.
+        if setting in ["1a", "1b"]:
+            labels = [sl.label for sl in data_per_volume[volume]]
+            if np.sum(labels) in [0, len(labels)]:  # This is the error mentioned above!
+                # This volume is either all simulated positive or all negative. Easy fix: change the label of one slice.
+                # Note that this makes the sl.label attribute inconsistent with the sl.slice_pathologies attribute, but
+                # that's fine since we won't use the latter anymore. NOTE: Dangerous if we ever need the original!
+                # NOTE: This doesn't seem to actually replace the attribute for some reason...
+                # data_per_volume[volume][0]._replace(label=not data_per_volume[volume][0].label)
+                raise RuntimeError("Type-1 volumes should not contain only one class!")
+            if i % 2 == 0:  # even
+                positive_volumes.append(volume)
+            else:  # odd
+                negative_volumes.append(volume)
+        elif setting == "2":  # Check whether the volume is positive or negative
+            labels = [sl.label for sl in data_per_volume[volume]]
+            if np.sum(labels) not in [0, len(labels)]:
+                raise RuntimeError("Volume contains both positive and negative samples!")
+            if data_per_volume[volume][0].label == 1:
+                positive_volumes.append(volume)
+            else:
+                negative_volumes.append(volume)
+
+    # Shuffle volumes to get random order for every run (for computing Type-1 and Type-2 errors later).
+    random.shuffle(positive_volumes)
+    random.shuffle(negative_volumes)
+
+    # Model definition
+    module = SamplingModelModule(
+        args.in_chans,
+        args.chans,
+        args.num_pool_layers,
+        args.drop_prob,
+        input_shape,
+        args.lr,
+        args.total_lr_gamma,
+        args.num_epochs,
+        args.do_early_stopping,
+        patience=3,
+    )
+
+    # Results dict
+    results_per_round = {
+        "e_val": [],
+        "running_e_val": [],
+        "test_loss": [],
+        "test_acc": [],
+        "result": [],
+    }
+    train_volumes = []
+    val_volumes = []
+    test_volumes = []
+    # A round uses two volumes (equal number of volumes from each class), skip last two rounds because
+    # we need val and test data as well.
+    num_rounds = min(len(positive_volumes), len(negative_volumes)) - 2
+    running_e_val = 1
+    for i in range(num_rounds):
+        print(f"Round {i} / {num_rounds - 1}")
+        if i == 0:  # First round, assign volumes.
+            train_volumes += [positive_volumes[i], negative_volumes[i]]
+            val_volumes = [positive_volumes[i + 1], negative_volumes[i + 1]]
+            test_volumes = [positive_volumes[i + 2], negative_volumes[i + 2]]
+        else:  # Subsequent rounds, use validation and test data from previous round.
+            train_volumes += val_volumes
+            val_volumes = test_volumes
+            test_volumes = [positive_volumes[i + 2], negative_volumes[i + 2]]
+
+        if i < args.num_skip_rounds:
+            continue
+
+        # Overwrite dataset structures with these batches
+        train.raw_samples = [slice for vol in train_volumes for slice in data_per_volume[vol]]
+        val.raw_samples = [slice for vol in val_volumes for slice in data_per_volume[vol]]
+        test.raw_samples = [slice for vol in test_volumes for slice in data_per_volume[vol]]
+        print("Train: {}, Val: {}, Test: {}".format(len(train), len(val), len(test)))
+        # Create loaders for this round
+        train_loader = torch.utils.data.DataLoader(
+            dataset=train,
+            batch_size=args.batch_size,
+            num_workers=args.num_workers,
+            worker_init_fn=None,
+            shuffle=True,
+        )
+        val_loader = torch.utils.data.DataLoader(
+            dataset=val,
+            batch_size=256,
+            num_workers=args.num_workers,
+            worker_init_fn=None,
+            shuffle=False,
+        )
+        test_loader = torch.utils.data.DataLoader(
+            dataset=test,
+            batch_size=256,
+            num_workers=args.num_workers,
+            worker_init_fn=None,
+            shuffle=False,
+        )
+        (
+            train_losses,
+            val_losses,
+            val_accs,
+            extra_output,
+            total_time,
+        ) = module.train(train_loader, val_loader, print_every=10, eval_every=1)
+        # Do testing
+        test_loss, test_acc, test_extra_output = module.test(test_loader)
+        # Targets are 1-dimensional
+        targets = test_extra_output["targets"]
+        # logits are 1-dimensional
+        test_logit1 = test_extra_output["logits"]
+        # test_prob1 is probability of class 1 given by model
+        test_prob1 = torch.sigmoid(test_logit1)
+
+        e_val = c2st_e_prob1(targets, test_prob1)
+        running_e_val *= e_val
+        print(f"E-value: {e_val:.4f} (actual: {e_val})")
+        print(f"Running E-value: {running_e_val:.4f} (actual: {running_e_val})")
+
+        results_per_round["e_val"].append(e_val)
+        results_per_round["running_e_val"].append(running_e_val)
+        results_per_round["test_loss"].append(test_loss)
+        results_per_round["test_acc"].append(test_acc)
+        results_per_round["result"].append("reject" if e_val > 20 else "accept")
+        if running_e_val > 20:  # exit loop if reject
+            return results_per_round
+
+        if args.cold_start:  # Retrain model from scratch every round
+            # Apparently reinitialising is not so easy, so just redefine the model with same params.
+            module = SamplingModelModule(
+                args.in_chans,
+                args.chans,
+                args.num_pool_layers,
+                args.drop_prob,
+                input_shape,
+                args.lr,
+                args.total_lr_gamma,
+                args.num_epochs,
+                args.do_early_stopping,
+                patience=3,
+            )
+
+    return results_per_round
 
 
 if __name__ == "__main__":
@@ -382,7 +701,7 @@ if __name__ == "__main__":
         slice_splits = None
         for dataset_ind in range(num_samples):
             print(f"\n  ----- Dataset index: {dataset_ind} ----- ")
-            # Do this experiment a bunch of times so we can get an error estimate.
+            # Do this experiment a bunch of times, so we can get an error estimate.
             # NOTE: Can also do partition split to treat as different experiments!
             if num_partitions > 0 and slice_splits is not None:
                 # This means we are doing partitions, and are not on the first partition index anymore.
@@ -401,116 +720,22 @@ if __name__ == "__main__":
                     print(f"Skipping setting: {setting}.")
                     continue
                 print(f"\n   ----- Setting: {setting} ----- ")
-                train_loader = torch.utils.data.DataLoader(
-                    dataset=train,
-                    batch_size=args.batch_size,
-                    num_workers=args.num_workers,
-                    worker_init_fn=None,
-                    shuffle=True,
-                )
-                val_loader = torch.utils.data.DataLoader(
-                    dataset=val,
-                    batch_size=256,
-                    num_workers=args.num_workers,
-                    worker_init_fn=None,
-                    shuffle=False,
-                )
-                test_loader = torch.utils.data.DataLoader(
-                    dataset=test,
-                    batch_size=256,
-                    num_workers=args.num_workers,
-                    worker_init_fn=None,
-                    shuffle=False,
-                )
-
-                # --------------------------------------
-                # ------ Model, training, testing ------
-                # --------------------------------------
-                print(f"\n Starting C2ST-E/P/L training...")
-                module = SamplingModelModule(
-                    args.in_chans,
-                    args.chans,
-                    args.num_pool_layers,
-                    args.drop_prob,
-                    input_shape,
-                    args.lr,
-                    args.total_lr_gamma,
-                    args.num_epochs,
-                    args.do_early_stopping,
-                )
-
-                (
-                    train_losses,
-                    val_losses,
-                    val_accs,
-                    extra_output,
-                    total_time,
-                ) = module.train(train_loader, val_loader, print_every=1, eval_every=1)
-                print(f" Total time: {total_time:.2f}s")
-                test_loss, test_acc, test_extra_output = module.test(test_loader)
-
-                # print(f"\n Starting MMD training...")
-                # # MMD classifier training and testing
-                # module = SamplingModelModuleMMD(
-                #     args.in_chans,
-                #     args.chans,
-                #     args.num_pool_layers,
-                #     args.drop_prob,
-                #     input_shape,
-                #     args.lr,
-                #     args.total_lr_gamma,
-                #     args.num_epochs,
-                #     save_dir / str(dataset_size) / str(dataset_ind) / str(setting),  # For logit saving
-                #     args.do_early_stopping,
-                # )
-                #
-                # (
-                #     train_losses_mmd,
-                #     val_losses_mmd,
-                #     extra_output_mmd,
-                #     total_time_mmd,
-                # ) = module.train(train_loader, val_loader, print_every=1, eval_every=1)
-                # print(f" Total time: {total_time_mmd:.2f}s")
-                # test_loss_mmd, Kxyxy, mmd_size, test_extra_output_mmd = module.test(test_loader)
-
-                # --------------------------
-                # ------ Sample tests ------
-                # --------------------------
-
-                # Targets are 1-dimensional
-                targets = test_extra_output["targets"]
-                # logits are 1-dimensional
-                test_logit1 = test_extra_output["logits"]
-                # test_prob1 is probability of class 1 given by model
-                test_prob1 = torch.sigmoid(test_logit1)
-
-                e_val = c2st_e_prob1(targets, test_prob1)
-                print(f" 1 / E-value: {1 / e_val:.4f} (actual: {1 / e_val})")
-                p_val_c2st = c2st_prob1(targets, test_prob1)
-                print(f"     p-value: {p_val_c2st:.4f} (actual: {p_val_c2st})")
-                _, _, _, p_val_l = test_le(test_logit1, targets, 100, sigmoid=False)
-                print(f"     p-value (L): {p_val_l:.4f} (actual: {p_val_l})")
-                _, _, _, p_val_ls = test_le(test_logit1, targets, 100, sigmoid=True)
-                print(f"     p-value (L - sigmoid): {p_val_ls:.4f} (actual: {p_val_ls})")
-                # _, p_val_mmd, _ = mmd2_permutations(Kxyxy, mmd_size, permutations=200)
-                # print(f"     p-value (MMD): {p_val_mmd:.4f} (actual: {p_val_mmd})")
-
-                size_results_dict[dataset_ind][setting] = {
-                    "e_val": e_val,
-                    "p_val": p_val_c2st,
-                    "p_val_l": p_val_l,
-                    "p_val_ls": p_val_ls,
-                    # "p_val_mmd": p_val_mmd,
-                    "test_loss": test_loss,
-                    "test_acc": test_acc,
-                    # "test_loss_mmd": test_loss_mmd,
-                }
+                if args.test_type == "anytime":
+                    size_results_dict[dataset_ind][setting] = train_model_and_do_anytime_tests(
+                        args, dataset_ind, setting, input_shape, train, val, test
+                    )
+                else:
+                    size_results_dict[dataset_ind][setting] = train_model_and_do_base_tests(
+                        args, dataset_ind, setting, input_shape, train, val, test
+                    )
 
         results_dict[dataset_size] = size_results_dict
         # Saving results
+        print(f"Saving size {dataset_size} results to {save_dir}")
         with open(save_dir / f"results_size{dataset_size}.json", "w") as f:
             json.dump({str(key): val for key, val in size_results_dict.items()}, f, indent=4)
 
     # Saving results
+    print(f"Saving final results to {save_dir}")
     with open(save_dir / "results.json", "w") as f:
         json.dump({str(key): val for key, val in results_dict.items()}, f, indent=4)

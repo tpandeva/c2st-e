@@ -159,7 +159,7 @@ class SamplingModelModule:
                 val_loss, val_acc, val_extra_output = self.val_epoch(val_loader)
                 # Early stopping block
                 if self.early_stopping:
-                    if val_loss <= best_val_loss:
+                    if val_loss < best_val_loss:
                         patience_count = 0
                         best_val_loss = val_loss
                     else:

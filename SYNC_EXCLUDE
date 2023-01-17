@@ -4,3 +4,4 @@ launch/
 remote_notebooks/
 slurm*
 jupyter_notebooks/
+results/

@@ -187,6 +187,12 @@ def create_arg_parser():
         help="Whether to do early stopping on validation data.",
     )
     parser.add_argument(
+        "--patience",
+        default=3,
+        type=int,
+        help="Patience (in epochs) to use for early stopping.",
+    )
+    parser.add_argument(
         "--quick_test",
         default=False,
         type=str2bool,
@@ -212,7 +218,8 @@ def create_arg_parser():
         type=str2bool,
         help=(
             "Whether to retrain model from scratch every round of anytime testing (else continues "
-            "from previous round).",
+            "from previous round). Not used when `do_online_learning` is True, since online learning implies "
+            "starting from a previous trained state.",
         )
     )
     parser.add_argument(
@@ -223,6 +230,12 @@ def create_arg_parser():
             "Number of volumes to use per batch during anytime testing. Multiple "
             "of 2 (use half `positive` and half `negative` samples.",
         )
+    )
+    parser.add_argument(
+        "--do_online_learning",
+        default=False,
+        type=str2bool,
+        help="Whether to do online learning, else: accumulate batches for training data.",
     )
     return parser
 
@@ -498,7 +511,7 @@ def train_model_and_do_anytime_tests(args, dataset_ind, setting, input_shape, tr
         args.total_lr_gamma,
         args.num_epochs,
         args.do_early_stopping,
-        patience=3,
+        patience=args.patience,
     )
 
     # Results dict
@@ -510,6 +523,7 @@ def train_model_and_do_anytime_tests(args, dataset_ind, setting, input_shape, tr
         "result": [],
     }
     halfnum_per_batch = args.volumes_per_batch // 2
+    # Note that using this to control the number of rounds means we're throwing away volumes for Type 2.
     min_of_volumes = min(len(positive_volumes), len(negative_volumes))
     num_rounds = (min_of_volumes // halfnum_per_batch - 2 if min_of_volumes % halfnum_per_batch == 0
                   else min_of_volumes // halfnum_per_batch - 1)
@@ -530,7 +544,10 @@ def train_model_and_do_anytime_tests(args, dataset_ind, setting, input_shape, tr
                 negative_volumes[2 * halfnum_per_batch: 3 * halfnum_per_batch],
             ]
         else:  # Subsequent rounds, use validation and test data from previous round.
-            train_volumes += val_volumes
+            if args.do_online_learning:  # Online learning: use validation data from previous round as training data.
+                train_volumes = val_volumes
+            else:  # Combine train and validation data from previous round.
+                train_volumes += val_volumes
             val_volumes = test_volumes
             test_volumes = [
                 positive_volumes[(i + 2) * halfnum_per_batch: (i + 3) * halfnum_per_batch],
@@ -604,7 +621,7 @@ def train_model_and_do_anytime_tests(args, dataset_ind, setting, input_shape, tr
         if running_e_val > 20:  # exit loop if reject
             return results_per_round
 
-        if args.cold_start:  # Retrain model from scratch every round
+        if not args.do_online_learning and args.cold_start:  # Retrain model from scratch every round
             # Apparently reinitialising is not so easy, so just redefine the model with same params.
             module = SamplingModelModule(
                 args.in_chans,
@@ -616,7 +633,7 @@ def train_model_and_do_anytime_tests(args, dataset_ind, setting, input_shape, tr
                 args.total_lr_gamma,
                 args.num_epochs,
                 args.do_early_stopping,
-                patience=3,
+                patience=args.patience,
             )
 
     return results_per_round

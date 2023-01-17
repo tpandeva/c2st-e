@@ -370,10 +370,10 @@ class SampledSlices:
             elif not true_label and num_neg < num_per_class:
                 stratified_slices.append(slic)
                 num_neg += 1
-            elif true_label:
-                skipped_pos += 1
-            elif not true_label:
-                skipped_neg += 1
+            # elif true_label:
+            #     skipped_pos += 1
+            # elif not true_label:
+            #     skipped_neg += 1
             else:
                 continue
         return stratified_slices

@@ -361,6 +361,7 @@ class SampledSlices:
         num_per_class = dataset_size // 2
         stratified_slices = []
         num_pos, num_neg = 0, 0
+        skipped_pos, skipped_neg = 0, 0
         for slic in slices:
             fname, dataslice, metadata, slice_pathologies, true_label = slic
             if true_label and num_pos < num_per_class:
@@ -369,6 +370,10 @@ class SampledSlices:
             elif not true_label and num_neg < num_per_class:
                 stratified_slices.append(slic)
                 num_neg += 1
+            elif true_label:
+                skipped_pos += 1
+            elif not true_label:
+                skipped_neg += 1
             else:
                 continue
         return stratified_slices

@@ -215,6 +215,15 @@ def create_arg_parser():
             "from previous round).",
         )
     )
+    parser.add_argument(
+        "--volumes_per_batch",
+        default=10,
+        type=int,
+        help=(
+            "Number of volumes to use per batch during anytime testing. Multiple "
+            "of 2 (use half `positive` and half `negative` samples.",
+        )
+    )
     return parser
 
 
@@ -425,7 +434,15 @@ def train_model_and_do_anytime_tests(args, dataset_ind, setting, input_shape, tr
         for volume in data_per_volume:
             # Need at least two samples in a volume, so we can guarantee a positive and negative slice per
             # volume for the Type-1 setting.
-            assert len(data_per_volume[volume]) > 1, f"Reconstructed volume {volume} only has one sample!"
+            if len(data_per_volume[volume]) == 1:
+                print(
+                    f"Reconstructed volume {volume} only has one sample! Make sure to use multiple volumes per batch."
+                )
+                if args.volumes_per_batch == 1:
+                    raise ValueError(
+                        "Can't run Type-1 setting with only one volume per batch, since "
+                        "there is a reconstructed volume with only one sample! Set `volumes_per_batch` > 1."
+                    )
     volumes = [key for key in data_per_volume.keys()]
     num_volumes = len(volumes)
 
@@ -450,7 +467,9 @@ def train_model_and_do_anytime_tests(args, dataset_ind, setting, input_shape, tr
                 # that's fine since we won't use the latter anymore. NOTE: Dangerous if we ever need the original!
                 # NOTE: This doesn't seem to actually replace the attribute for some reason...
                 # data_per_volume[volume][0]._replace(label=not data_per_volume[volume][0].label)
-                raise RuntimeError("Type-1 volumes should not contain only one class!")
+                print(f"Volume {volume} has only one class! Make sure to use multiple volumes!")
+                if args.volumes_per_batch == 1:
+                    raise ValueError("Not using multiple volumes per batch! Set `volumes_per_batch` > 1.")
             if i % 2 == 0:  # even
                 positive_volumes.append(volume)
             else:  # odd
@@ -490,33 +509,32 @@ def train_model_and_do_anytime_tests(args, dataset_ind, setting, input_shape, tr
         "test_acc": [],
         "result": [],
     }
-    # TODO: Check this!
-    num_per_batch = 5
+    halfnum_per_batch = args.volumes_per_batch // 2
     min_of_volumes = min(len(positive_volumes), len(negative_volumes))
-    num_rounds = (min_of_volumes // num_per_batch - 2 if min_of_volumes % num_per_batch == 0
-                  else min_of_volumes // num_per_batch - 1)
+    num_rounds = (min_of_volumes // halfnum_per_batch - 2 if min_of_volumes % halfnum_per_batch == 0
+                  else min_of_volumes // halfnum_per_batch - 1)
     running_e_val = 1
     for i in range(num_rounds):
         print(f"Round {i} / {num_rounds - 1}")
         if i == 0:  # First round, assign volumes.
             train_volumes = [
-                positive_volumes[:num_per_batch],
-                negative_volumes[:num_per_batch],
+                positive_volumes[:halfnum_per_batch],
+                negative_volumes[:halfnum_per_batch],
             ]
             val_volumes = [
-                positive_volumes[num_per_batch: 2 * num_per_batch],
-                negative_volumes[num_per_batch: 2 * num_per_batch],
+                positive_volumes[halfnum_per_batch: 2 * halfnum_per_batch],
+                negative_volumes[halfnum_per_batch: 2 * halfnum_per_batch],
             ]
             test_volumes = [
-                positive_volumes[2 * num_per_batch: 3 * num_per_batch],
-                negative_volumes[2 * num_per_batch: 3 * num_per_batch],
+                positive_volumes[2 * halfnum_per_batch: 3 * halfnum_per_batch],
+                negative_volumes[2 * halfnum_per_batch: 3 * halfnum_per_batch],
             ]
         else:  # Subsequent rounds, use validation and test data from previous round.
             train_volumes += val_volumes
             val_volumes = test_volumes
             test_volumes = [
-                positive_volumes[(i + 2) * num_per_batch: (i + 3) * num_per_batch],
-                negative_volumes[(i + 2) * num_per_batch: (i + 3) * num_per_batch]
+                positive_volumes[(i + 2) * halfnum_per_batch: (i + 3) * halfnum_per_batch],
+                negative_volumes[(i + 2) * halfnum_per_batch: (i + 3) * halfnum_per_batch]
             ]
         if i < args.num_skip_rounds:
             continue
@@ -525,6 +543,15 @@ def train_model_and_do_anytime_tests(args, dataset_ind, setting, input_shape, tr
         train.raw_samples = [sl for vol_list in train_volumes for vol in vol_list for sl in data_per_volume[vol]]
         val.raw_samples = [sl for vol_list in val_volumes for vol in vol_list for sl in data_per_volume[vol]]
         test.raw_samples = [sl for vol_list in test_volumes for vol in vol_list for sl in data_per_volume[vol]]
+
+        # Check that we have positive and negative samples in each batch. Using more volumes per batch can help
+        #  prevent these errors for Type-1 data settings.
+        if i == 0:  # First round, check that we have positive and negative samples in each batch.
+            assert len(set([sl.label for sl in train.raw_samples])) == 2, "Train batch contains only one class!"
+            assert len(set([sl.label for sl in val.raw_samples])) == 2, "Val batch contains only one class!"
+        # Later rounds, only test batches contain new data.
+        assert len(set([sl.label for sl in test.raw_samples])) == 2, "Test batch contains only one class!"
+
         print("Train: {}, Val: {}, Test: {}".format(len(train), len(val), len(test)))
         # Create loaders for this round
         train_loader = torch.utils.data.DataLoader(
@@ -612,6 +639,8 @@ if __name__ == "__main__":
         else:
             num_samples = args.num_dataset_samples
             num_partitions = 0
+    if args.test_type == "anytime":
+        assert args.volumes_per_batch % 2 == 0, "`volumes_per_batch` must be even for anytime testing."
 
     # Save args
     date_string = f"{datetime.now():%Y-%m-%d}"

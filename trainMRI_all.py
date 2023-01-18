@@ -545,7 +545,15 @@ def train_model_and_do_anytime_tests(args, dataset_ind, setting, input_shape, tr
             ]
         else:  # Subsequent rounds, use validation and test data from previous round.
             if args.do_online_learning:  # Online learning: use validation data from previous round as training data.
-                train_volumes = val_volumes
+                # If we skip rounds when online learning, then we should accumulate data from skipped rounds. When
+                #  i == args.skip_rounds, we have skipped args.skip_rounds rounds, so we do one final accumulation and
+                #  train. E.g. if args.skip_rounds == 10, then we skip i == [0-9] (10 rounds), and train starting at
+                #  i == 10 (round 11) using data from all [0-9] rounds. Then in round 12 (i == 11), we only use train
+                #  data from a single new batch.
+                if 0 < i <= args.num_skip_rounds:
+                    train_volumes += val_volumes
+                else:
+                    train_volumes = val_volumes
             else:  # Combine train and validation data from previous round.
                 train_volumes += val_volumes
             val_volumes = test_volumes
@@ -553,7 +561,8 @@ def train_model_and_do_anytime_tests(args, dataset_ind, setting, input_shape, tr
                 positive_volumes[(i + 2) * halfnum_per_batch: (i + 3) * halfnum_per_batch],
                 negative_volumes[(i + 2) * halfnum_per_batch: (i + 3) * halfnum_per_batch]
             ]
-        if i < args.num_skip_rounds:
+
+        if i < args.num_skip_rounds:  # Just accumulate data for now
             continue
 
         # Overwrite dataset structures with these batches

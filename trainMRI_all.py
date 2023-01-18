@@ -799,15 +799,21 @@ if __name__ == "__main__":
                     )
 
             print(f"Dataset index {dataset_ind} took {time.perf_counter() - ind_time:.2f} seconds.")
-        print(f"Dataset size {dataset_size} took {time.perf_counter() - ds_time:.2f} seconds.")
+            # Saving partial results
+            size_dir = save_dir / f"size_{dataset_size}"
+            size_dir.mkdir(parents=True, exist_ok=True)  # OK if date folder exists already
+            print(f"Saving index {dataset_ind} results to {size_dir}")
+            with open(size_dir / f"results_index{dataset_ind}.json", "w") as f:
+                json.dump({str(key): val for key, val in size_results_dict[dataset_ind].items()}, f, indent=4)
 
-        results_dict[dataset_size] = size_results_dict
-        # Saving results
+        print(f"Dataset size {dataset_size} took {time.perf_counter() - ds_time:.2f} seconds.")
+        # Saving size results
         print(f"Saving size {dataset_size} results to {save_dir}")
         with open(save_dir / f"results_size{dataset_size}.json", "w") as f:
             json.dump({str(key): val for key, val in size_results_dict.items()}, f, indent=4)
+        results_dict[dataset_size] = size_results_dict
 
-    # Saving results
+    # Saving final results
     print(f"Saving final results to {save_dir}")
     with open(save_dir / "results.json", "w") as f:
         json.dump({str(key): val for key, val in results_dict.items()}, f, indent=4)

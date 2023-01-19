@@ -31,7 +31,7 @@ mkdir -p "${LAUNCH_DIR}"
 #    echo "#SBATCH --job-name=$JOB_NAME" >> ${SLURM}
 #    echo "#SBATCH --output=${LOGS_DIR}/%j.out" >> ${SLURM}
 #    echo "#SBATCH --error=${LOGS_DIR}/%j.err" >> ${SLURM}
-#    echo "#SBATCH --gres=gpu:1080Ti:1" >> ${SLURM}
+#    echo "#SBATCH --gres=gpu:pascal:1" >> ${SLURM}
 #    echo "#SBATCH --cpus-per-task=12" >> ${SLURM}
 #    echo "#SBATCH --ntasks-per-node=1" >> ${SLURM}
 #    echo "#SBATCH --mem=8G" >> ${SLURM}
@@ -70,7 +70,7 @@ echo "#!/bin/bash" > ${SLURM}
 echo "#SBATCH --job-name=$JOB_NAME" >> ${SLURM}
 echo "#SBATCH --output=${LOGS_DIR}/%j.out" >> ${SLURM}
 echo "#SBATCH --error=${LOGS_DIR}/%j.err" >> ${SLURM}
-echo "#SBATCH --gres=gpu:1080Ti:1" >> ${SLURM}
+echo "#SBATCH --gres=gpu:pascal:1" >> ${SLURM}
 echo "#SBATCH --cpus-per-task=12" >> ${SLURM}
 echo "#SBATCH --ntasks-per-node=1" >> ${SLURM}
 echo "#SBATCH --mem=8G" >> ${SLURM}
@@ -106,7 +106,7 @@ echo "#!/bin/bash" > ${SLURM}
 echo "#SBATCH --job-name=$JOB_NAME" >> ${SLURM}
 echo "#SBATCH --output=${LOGS_DIR}/%j.out" >> ${SLURM}
 echo "#SBATCH --error=${LOGS_DIR}/%j.err" >> ${SLURM}
-echo "#SBATCH --gres=gpu:1080Ti:1" >> ${SLURM}
+echo "#SBATCH --gres=gpu:pascal:1" >> ${SLURM}
 echo "#SBATCH --cpus-per-task=12" >> ${SLURM}
 echo "#SBATCH --ntasks-per-node=1" >> ${SLURM}
 echo "#SBATCH --mem=8G" >> ${SLURM}

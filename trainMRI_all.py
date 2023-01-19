@@ -207,9 +207,12 @@ def create_arg_parser():
     )
     parser.add_argument(
         "--num_skip_rounds",
-        default=0,
+        default=-1,
         type=int,
-        help="Number of rounds to skip model training on during anytime testing (to start with larger datasets).",
+        help=(
+            "Number of rounds to skip model training on during anytime testing (to start with larger datasets). Set"
+            "to -1 to use heuristic.",
+        )
         # NOTE: This is different from only skipping the E-value computation!
     )
     parser.add_argument(
@@ -528,6 +531,8 @@ def train_model_and_do_anytime_tests(args, dataset_ind, setting, input_shape, tr
     num_rounds = (min_of_volumes // halfnum_per_batch - 2 if min_of_volumes % halfnum_per_batch == 0
                   else min_of_volumes // halfnum_per_batch - 1)
     running_e_val = 1
+    start_testing = False  # Used for heuristic
+    max_crit_val = -1000  # Used for heuristic
     for i in range(num_rounds):
         print(f"Round {i} / {num_rounds - 1}")
         if i == 0:  # First round, assign volumes.
@@ -562,7 +567,8 @@ def train_model_and_do_anytime_tests(args, dataset_ind, setting, input_shape, tr
                 negative_volumes[(i + 2) * halfnum_per_batch: (i + 3) * halfnum_per_batch]
             ]
 
-        if i < args.num_skip_rounds:  # Just accumulate data for now
+        # If args.num_skip_rounds == -1 we use the heuristic, but this actually requires computing E-values.
+        if -1 < i < args.num_skip_rounds:  # Just accumulate data for now
             continue
 
         # Overwrite dataset structures with these batches
@@ -618,15 +624,39 @@ def train_model_and_do_anytime_tests(args, dataset_ind, setting, input_shape, tr
         test_prob1 = torch.sigmoid(test_logit1)
 
         e_val = c2st_e_prob1(targets, test_prob1)
-        running_e_val *= e_val
         print(f"E-value: {e_val:.4f} (actual: {e_val})")
-        print(f"Running E-value: {running_e_val:.4f} (actual: {running_e_val})")
-
         results_per_round["e_val"].append(e_val)
-        results_per_round["running_e_val"].append(running_e_val)
         results_per_round["test_loss"].append(test_loss)
         results_per_round["test_acc"].append(test_acc)
-        results_per_round["result"].append("reject" if e_val > 20 else "accept")
+        results_per_round["result"].append("reject" if e_val > 20 else "accept")  # Individual E-val
+
+        if args.num_skip_rounds == -1 and not start_testing:
+            num_prev_rounds = len(results_per_round["e_val"][:-1])
+            assert num_prev_rounds == i, "Something wrong with heuristic round indexing."
+            if num_prev_rounds > 1:  # Need at least 2 previous rounds
+                # Get E-value of previous round
+                e_t = results_per_round["e_val"][i - 1]  # i is the current round number
+                # Get mean of E-value diffs of previous rounds
+                mean_of_past_e_diffs = np.mean(
+                    np.abs(np.array(results_per_round["e_val"][1:i]) - np.array(results_per_round["e_val"][:i - 1]))
+                )
+                # Current criterion value
+                new_crit_val = e_t - mean_of_past_e_diffs
+                # Highest criterion value until now
+                max_crit_val = max(max_crit_val, new_crit_val)
+                if max_crit_val > 1:  # Start testing
+                    running_e_val = e_val  # Current running E-value is the E-value obtained in this round!
+                    start_testing = True
+                else:
+                    running_e_val = 1  # Placeholder
+            else:
+                running_e_val = 1
+        else:
+            running_e_val *= e_val
+
+        print(f"Running E-value: {running_e_val:.4f} (actual: {running_e_val})")
+        results_per_round["running_e_val"].append(running_e_val)
+
         if running_e_val > 20:  # exit loop if reject
             return results_per_round
 

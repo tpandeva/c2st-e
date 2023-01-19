@@ -674,7 +674,10 @@ if __name__ == "__main__":
     save_dir = args.save_dir / date_string
     save_dir.mkdir(parents=True, exist_ok=True)  # OK if date folder exists already
     save_dir = save_dir / time_string
-    save_dir.mkdir(parents=True, exist_ok=False)  # Not OK if time folder exists already
+    # Not OK if time folder exists already, since then we store multiple runs in the same folder.
+    # Note that this sometimes gives errors when using SLURM, since the time is not always precise enough if jobs
+    #  have been queued and suddenly start at the same time.
+    save_dir.mkdir(parents=True, exist_ok=False)
     args_dict = {key: str(value) for key, value in vars(args).items()}
     with open(save_dir / "args.json", "w") as f:
         json.dump(args_dict, f, indent=4)

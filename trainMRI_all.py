@@ -570,8 +570,6 @@ def train_model_and_do_anytime_tests(args, dataset_ind, setting, input_shape, tr
         val.raw_samples = [sl for vol_list in val_volumes for vol in vol_list for sl in data_per_volume[vol]]
         test.raw_samples = [sl for vol_list in test_volumes for vol in vol_list for sl in data_per_volume[vol]]
 
-        continue
-
         # Check that we have positive and negative samples in each batch. Using more volumes per batch can help
         #  prevent these errors for Type-1 data settings.
         if i == 0:  # First round, check that we have positive and negative samples in each batch.

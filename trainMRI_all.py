@@ -637,17 +637,17 @@ def train_model_and_do_anytime_tests(args, dataset_ind, setting, input_shape, tr
                 # Get E-value of previous round
                 e_t = results_per_round["e_val"][i - 1]  # i is the current round number
                 # Get mean of E-value diffs of previous rounds
-                mean_of_past_e_diffs = np.mean(
-                    np.abs(np.array(results_per_round["e_val"][1:i]) - np.array(results_per_round["e_val"][:i - 1]))
-                )
-                # past_e_diffs = np.array(results_per_round["e_val"][1:i]) - np.array(results_per_round["e_val"][:i - 1])
-                # mean_of_past_e_diffs = 0
-                # j = 0
-                # for val in past_e_diffs:
-                #     if val > 0:
-                #         j += 1
-                #         mean_of_past_e_diffs += val
-                # mean_of_past_e_diffs /= (j + 1)
+                # mean_of_past_e_diffs = np.mean(
+                #     np.abs(np.array(results_per_round["e_val"][1:i]) - np.array(results_per_round["e_val"][:i - 1]))
+                # )
+                past_e_diffs = np.array(results_per_round["e_val"][1:i]) - np.array(results_per_round["e_val"][:i - 1])
+                mean_of_past_e_diffs = 0
+                j = 0
+                for ev in past_e_diffs:
+                    if ev > 0:
+                        j += 1
+                        mean_of_past_e_diffs += ev
+                mean_of_past_e_diffs /= (j + 1)
                 # Current criterion value
                 new_crit_val = e_t - mean_of_past_e_diffs
                 # Highest criterion value until now

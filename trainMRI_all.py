@@ -217,7 +217,7 @@ def create_arg_parser():
     )
     parser.add_argument(
         "--cold_start",
-        default=False,
+        default=True,
         type=str2bool,
         help=(
             "Whether to retrain model from scratch every round of anytime testing (else continues "
@@ -425,7 +425,7 @@ def train_model_and_do_base_tests(args, dataset_ind, setting, input_shape, train
 def train_model_and_do_anytime_tests(args, dataset_ind, setting, input_shape, train, val, test):
     """Train and test model for anytime testing."""
 
-    # Now get batches where each batch is a volume
+    # Now get batches where each batch is one or more volumes.
     # Note that the volumes are either fully clean OR pathological.
     # For Type-1: each volume contains both (simulated) classes.
     # For Type-2: each volume contains only one (true) class.
@@ -434,7 +434,6 @@ def train_model_and_do_anytime_tests(args, dataset_ind, setting, input_shape, tr
     # batches for validation, and for testing. This is one round. For the next round, we use the validation batch for
     # training, the test batch for validation, and grab a new batch for testing. Repeat until we reject the null or
     # run out of data.
-    # Easiest way to do this is probably to change the train/val/test loaders every round.
     def make_data_per_volume(train, val, test):
         data = train.raw_samples + val.raw_samples + test.raw_samples
         data_per_volume = {}
